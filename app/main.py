@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from pydantic import BaseModel
 
 from app.slack_client import post_message
 from app.slack_oauth import build_authorize_url, exchange_code
@@ -12,9 +14,20 @@ load_dotenv()
 
 app = FastAPI(title="QA Testcase Slack Integration")
 
+BASE_DIR = Path(__file__).resolve().parent
+
 # MVP only. Replace with persistent per-user storage before multi-user use.
 OAUTH_STATES: set[str] = set()
 USER_TOKEN: Optional[str] = None
+
+
+class GeneratedCase(BaseModel):
+    title: str
+    text: str
+
+
+class SendCasesRequest(BaseModel):
+    cases: list[GeneratedCase]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -26,6 +39,7 @@ async def home() -> str:
         <h1>QA Testcase Slack Integration</h1>
         <p>Slack connected: <strong>{connected}</strong></p>
         <p><a href="/slack/oauth/start">Connect Slack</a></p>
+        <p><a href="/generator">Open testcase generator</a></p>
         <form method="post" action="/slack/send">
           <textarea name="text" rows="10" style="width:100%;">Hello from QA testcase integration</textarea><br><br>
           <button type="submit">Send to Slack</button>
@@ -33,6 +47,11 @@ async def home() -> str:
       </body>
     </html>
     """
+
+
+@app.get("/generator")
+async def generator() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "generator.html", media_type="text/html")
 
 
 @app.get("/slack/oauth/start")
@@ -63,8 +82,7 @@ async def slack_oauth_callback(code: str, state: str) -> str:
     return '<p>Slack connected. <a href="/">Back</a></p>'
 
 
-@app.post("/slack/send", response_class=HTMLResponse)
-async def slack_send(text: str = Form(...)) -> str:
+def require_slack_context() -> tuple[str, str]:
     if not USER_TOKEN:
         raise HTTPException(status_code=401, detail="Connect Slack first")
 
@@ -72,6 +90,28 @@ async def slack_send(text: str = Form(...)) -> str:
     if not channel_id:
         raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
 
-    result = await post_message(USER_TOKEN, channel_id, text)
+    return USER_TOKEN, channel_id
+
+
+@app.post("/slack/send", response_class=HTMLResponse)
+async def slack_send(text: str = Form(...)) -> str:
+    user_token, channel_id = require_slack_context()
+    result = await post_message(user_token, channel_id, text)
     ts = result.get("ts", "unknown")
     return f'<p>Sent to Slack. ts={ts}</p><p><a href="/">Back</a></p>'
+
+
+@app.post("/slack/send-cases")
+async def slack_send_cases(payload: SendCasesRequest) -> dict:
+    user_token, channel_id = require_slack_context()
+
+    if not payload.cases:
+        raise HTTPException(status_code=400, detail="No generated cases")
+
+    sent = 0
+    for case in payload.cases:
+        message = f"{case.title}\n\n{case.text}"
+        await post_message(user_token, channel_id, message)
+        sent += 1
+
+    return {"ok": True, "sent": sent}
