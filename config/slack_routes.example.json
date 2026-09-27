@@ -1,14 +1,78 @@
 {
-  "default": {
-    "channel_id": "C0123456789",
-    "user_ids": ["U0123456789"]
-  },
   "TR": {
-    "channel_id": "C0123456789",
-    "user_ids": ["U0123456789", "U9876543210"]
+    "channel_id": "C_TR_CHANNEL_ID",
+    "user_ids": ["U_TR_USER_ID_1", "U_TR_USER_ID_2"]
+  },
+  "AZ": {
+    "channel_id": "C_AZ_CHANNEL_ID",
+    "user_ids": ["U_AZ_USER_ID_1", "U_AZ_USER_ID_2"]
+  },
+  "CL": {
+    "channel_id": "C_CL_CHANNEL_ID",
+    "user_ids": ["U_CL_USER_ID_1", "U_CL_USER_ID_2"]
+  },
+  "CA": {
+    "channel_id": "C_CA_CHANNEL_ID",
+    "user_ids": ["U_CA_USER_ID_1", "U_CA_USER_ID_2"]
+  },
+  "GT": {
+    "channel_id": "C_GT_CHANNEL_ID",
+    "user_ids": ["U_GT_USER_ID_1", "U_GT_USER_ID_2"]
+  },
+  "KZ": {
+    "channel_id": "C_KZ_CHANNEL_ID",
+    "user_ids": ["U_KZ_USER_ID_1", "U_KZ_USER_ID_2"]
+  },
+  "BO": {
+    "channel_id": "C_BO_CHANNEL_ID",
+    "user_ids": ["U_BO_USER_ID_1", "U_BO_USER_ID_2"]
+  },
+  "UZ": {
+    "channel_id": "C_UZ_CHANNEL_ID",
+    "user_ids": ["U_UZ_USER_ID_1", "U_UZ_USER_ID_2"]
   },
   "IN": {
-    "channel_id": "C1111111111",
-    "user_ids": ["U2222222222"]
+    "channel_id": "C_IN_CHANNEL_ID",
+    "user_ids": ["U_IN_USER_ID_1", "U_IN_USER_ID_2"]
+  },
+  "KG": {
+    "channel_id": "C_KG_CHANNEL_ID",
+    "user_ids": ["U_KG_USER_ID_1", "U_KG_USER_ID_2"]
+  },
+  "BD": {
+    "channel_id": "C_BD_CHANNEL_ID",
+    "user_ids": ["U_BD_USER_ID_1", "U_BD_USER_ID_2"]
+  },
+  "MX": {
+    "channel_id": "C_MX_CHANNEL_ID",
+    "user_ids": ["U_MX_USER_ID_1", "U_MX_USER_ID_2"]
+  },
+  "EC": {
+    "channel_id": "C_EC_CHANNEL_ID",
+    "user_ids": ["U_EC_USER_ID_1", "U_EC_USER_ID_2"]
+  },
+  "HN": {
+    "channel_id": "C_HN_CHANNEL_ID",
+    "user_ids": ["U_HN_USER_ID_1", "U_HN_USER_ID_2"]
+  },
+  "TJ": {
+    "channel_id": "C_TJ_CHANNEL_ID",
+    "user_ids": ["U_TJ_USER_ID_1", "U_TJ_USER_ID_2"]
+  },
+  "NG": {
+    "channel_id": "C_NG_CHANNEL_ID",
+    "user_ids": ["U_NG_USER_ID_1", "U_NG_USER_ID_2"]
+  },
+  "KE": {
+    "channel_id": "C_KE_CHANNEL_ID",
+    "user_ids": ["U_KE_USER_ID_1", "U_KE_USER_ID_2"]
+  },
+  "CG": {
+    "channel_id": "C_CG_CHANNEL_ID",
+    "user_ids": ["U_CG_USER_ID_1", "U_CG_USER_ID_2"]
+  },
+  "RU": {
+    "channel_id": "C_RU_CHANNEL_ID",
+    "user_ids": ["U_RU_USER_ID_1", "U_RU_USER_ID_2"]
   }
 }
