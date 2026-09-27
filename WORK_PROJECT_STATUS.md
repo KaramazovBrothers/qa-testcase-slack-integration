@@ -108,3 +108,25 @@ Slack -> company HTTPS callback / ingress -> backend service
 ```
 
 The source code may live in the company GitLab repository, while the running backend will be deployed to company infrastructure. The production Slack app should be a separate company-controlled app, not the personal development app.
+
+
+## Update: generator connected to Slack
+
+Implemented after the OAuth MVP:
+
+- Added `app/static/generator.html` based on the existing generator as a temporary training/reference copy.
+- Added a new `Send to Slack` action next to the existing generator actions.
+- Added `GET /generator` to serve the generator from the FastAPI backend.
+- Added `POST /slack/send-cases`.
+- Generated cases are sent to Slack one case per message using the already authorized Slack user token.
+- The original repository `generator-tests-for-agregator` was not modified.
+
+Next verification step:
+
+1. Pull the latest changes locally.
+2. Restart the FastAPI backend.
+3. Reconnect Slack because the current token is in memory.
+4. Open `http://localhost:8000/generator`.
+5. Generate test cases.
+6. Press `Send to Slack`.
+7. Verify that all generated cases arrive in the configured Slack channel from the authorized user.
