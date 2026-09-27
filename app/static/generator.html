@@ -130,8 +130,7 @@ function updateUI(){
   const r=currentRegion();
   $('regionInfo').innerHTML='Валюта: <b>'+r.currency+'</b><br>Android: '+r.android.join(', ')+'<br>iOS: '+r.ios.join(', ')+'<br>Desktop: '+r.desktop.join(', ');
   $('qrSettings').classList.toggle('hidden',!checked('qr'));
-  $('minimalNote').classList.toggle('hidden',true);
-  const apps=licenseApps();const names=[];if(apps.native)names.push('Нативное приложение');if(apps.webview)names.push('WebView');if(names.length)$('regionInfo').innerHTML+='<br>Приложения: '+names.join(', ');
+  const apps=licenseApps();const names=[];if(apps.webview)names.push('WebView');if(apps.native)names.push('Нативное приложение');if(names.length)$('regionInfo').innerHTML+='<br>Дополнительные платформы: '+names.join(', ');
   const com=$('license').value==='com';
   $('comBox').classList.toggle('hidden',!com);
   $('usdOverWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||false);
