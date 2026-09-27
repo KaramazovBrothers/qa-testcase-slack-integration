@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.slack_client import post_message
 from app.slack_oauth import build_authorize_url, exchange_code
+from app.slack_routes import get_slack_route
 
 load_dotenv()
 
@@ -27,6 +28,7 @@ class GeneratedCase(BaseModel):
 
 
 class SendCasesRequest(BaseModel):
+    region: str
     cases: list[GeneratedCase]
 
 
@@ -82,20 +84,18 @@ async def slack_oauth_callback(code: str, state: str) -> str:
     return '<p>Slack connected. <a href="/">Back</a></p>'
 
 
-def require_slack_context() -> tuple[str, str]:
+def require_slack_token() -> str:
     if not USER_TOKEN:
         raise HTTPException(status_code=401, detail="Connect Slack first")
-
-    channel_id = os.getenv("SLACK_CHANNEL_ID")
-    if not channel_id:
-        raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
-
-    return USER_TOKEN, channel_id
+    return USER_TOKEN
 
 
 @app.post("/slack/send", response_class=HTMLResponse)
 async def slack_send(text: str = Form(...)) -> str:
-    user_token, channel_id = require_slack_context()
+    user_token = require_slack_token()
+    channel_id = os.getenv("SLACK_CHANNEL_ID")
+    if not channel_id:
+        raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
     result = await post_message(user_token, channel_id, text)
     ts = result.get("ts", "unknown")
     return f'<p>Sent to Slack. ts={ts}</p><p><a href="/">Back</a></p>'
@@ -103,15 +103,34 @@ async def slack_send(text: str = Form(...)) -> str:
 
 @app.post("/slack/send-cases")
 async def slack_send_cases(payload: SendCasesRequest) -> dict:
-    user_token, channel_id = require_slack_context()
+    user_token = require_slack_token()
 
     if not payload.cases:
         raise HTTPException(status_code=400, detail="No generated cases")
 
+    try:
+        channel_id, user_ids = get_slack_route(payload.region)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    mentions = " ".join(f"<@{user_id}>" for user_id in user_ids)
+    greeting = f"{mentions} Привет! Просьба провести тест депозита".strip()
+
+    parent = await post_message(user_token, channel_id, greeting)
+    thread_ts = parent.get("ts")
+    if not thread_ts:
+        raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
+
     sent = 0
     for case in payload.cases:
         message = f"{case.title}\n\n{case.text}"
-        await post_message(user_token, channel_id, message)
+        await post_message(user_token, channel_id, message, thread_ts=thread_ts)
         sent += 1
 
-    return {"ok": True, "sent": sent}
+    return {
+        "ok": True,
+        "sent": sent,
+        "channel_id": channel_id,
+        "mentioned_users": user_ids,
+        "thread_ts": thread_ts,
+    }
