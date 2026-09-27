@@ -188,7 +188,7 @@ function header(platform, amount, currency, usd){
     'Sum: '+amount+' '+currency
   ];
 }
-function baseSteps(platform,usd=false){
+function baseSteps(platform,usd=false,checkCashierReturn=false){
  const s=[];
  if(platform==='Нативное приложение')s.push('Открыть '+val('site',defaultSite())+', скачать нативное приложение из футера сайта и установить его. Открыть установленное приложение.');
  else if(platform==='PWA приложение')s.push('Открыть '+val('site',defaultSite())+', установить PWA приложение через меню браузера и открыть установленное PWA приложение.');
@@ -197,7 +197,7 @@ function baseSteps(platform,usd=false){
  s.push(usd?'Авторизоваться указанным отдельным пользователем с валютой аккаунта USD.':'Авторизоваться указанным тестовым пользователем.');
  s.push('Открыть кассу, выбрать вкладку «Пополнить» и метод '+val('method','PAYMENT_METHOD')+'.','Ввести указанную сумму заявки и нажать «Пополнить».');
  s.push($('integration').value==='HPP'?'Дождаться открытия платёжной страницы провайдера.':'Дождаться платёжных данных в нашей кассе.');
- if($('integration').value==='HPP'&&checked('returnToCashier'))s.push(
+ if(checkCashierReturn)s.push(
   'Нажать кнопку «Вернуться в кассу».',
   'Убедиться, что касса открыта на исходной платформе, пользователю отображается pending popup и пользователь остался авторизован.',
   'Повторить необходимые действия для возврата на страницу провайдера.'
@@ -207,7 +207,7 @@ function baseSteps(platform,usd=false){
 function generateCases(){
  $('message').textContent='';
  const r=currentRegion(),full=true,change=$('amountChange').value==='yes',com=$('license').value==='com',qr=checked('qr'),receipt=checked('receipt');
- const cases=[],used=new Set(),browsers=platformList(r),amount=val('amount','AMOUNT');
+ const cases=[],used=new Set(),cashierReturnPlatforms=new Set(),browsers=platformList(r),amount=val('amount','AMOUNT');
  const scanners=$('qrScanner').value==='both'?['camera','app']:[$('qrScanner').value];let scanIndex=0;
  function pay(s,platform,paid,currency){
   if(qr&&platform.startsWith('Desktop')){
@@ -224,7 +224,9 @@ function generateCases(){
  function add(platform,kind,usd=false){
   const sum=kind==='over'?(usd?val('usdOverRequest','USD_OVER_REQUEST_AMOUNT'):val('overRequest','OVER_REQUEST_AMOUNT')):kind==='under'?(usd?val('usdUnderRequest','USD_UNDER_REQUEST_AMOUNT'):val('underRequest','UNDER_REQUEST_AMOUNT')):usd?val('usdAmount','USD_AMOUNT'):amount,currency=usd?'USD':r.currency;
   let paid=sum;if(kind==='over')paid=usd?val('usdOverPaid','USD_OVERPAY_ACTUAL_AMOUNT'):val('overPaid','OVERPAY_ACTUAL_AMOUNT');if(kind==='under')paid=usd?val('usdUnderPaid','USD_UNDERPAY_ACTUAL_AMOUNT'):val('underPaid','UNDERPAY_ACTUAL_AMOUNT');
-  const s=baseSteps(platform,usd);let pre='';
+  const checkCashierReturn=$('integration').value==='HPP'&&checked('returnToCashier')&&!cashierReturnPlatforms.has(platform);
+  const s=baseSteps(platform,usd,checkCashierReturn);let pre='';
+  if(checkCashierReturn)cashierReturnPlatforms.add(platform);
   if(!platform.startsWith('Desktop')&&(qr&&$('qrMobile').value==='button'||checked('oneClick'))&&(kind==='expiry'||kind==='before'||qr&&$('qrMobile').value==='download'))s.push(
    'Нажать кнопку перехода в платёжное приложение.',
    'Убедиться, что именно по кнопке открылось нужное платёжное приложение.',
