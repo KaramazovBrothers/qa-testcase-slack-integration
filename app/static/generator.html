@@ -103,7 +103,7 @@
 <div class="actions">
 <button data-id="generate" type="button">Сгенерировать кейсы</button>
 <button data-id="copyAll" type="button" class="secondary">Копировать всё</button>
-<button data-id="sendSlack" type="button">Отправить в Slack</button>
+<button data-id="sendSlack" type="button">Отправить в Slack всё</button>
 </div>
 <div data-id="message" class="msg" role="status" aria-live="polite"></div>
 <h2>Сгенерированные кейсы: <span data-id="count">0</span></h2>
@@ -288,9 +288,29 @@ function renderCases(cases){
     const head=document.createElement('div');head.className='case-head';
     const button=document.createElement('button');button.type='button';button.className='secondary copy-case';
     button.textContent=caseLabel();button.setAttribute('aria-label',caseLabel()+' '+(i+1));
+    const slackButton=document.createElement('button');slackButton.type='button';slackButton.className='send-case-slack';
+    slackButton.textContent='Отправить в Slack';slackButton.setAttribute('aria-label','Отправить в Slack кейс '+(i+1));
     const status=document.createElement('div');status.className='case-copy-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
     button.addEventListener('click',()=>copyText(h.textContent+'\n\n'+p.textContent,status,d,true));
-    head.append(h,button);d.append(head,status,p);$('output').appendChild(d);
+    slackButton.addEventListener('click',async()=>{
+      status.textContent='Отправляем кейс в Slack...';
+      try{
+        const response=await fetch('/slack/send-cases',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            region:$('region').value,
+            cases:[{title:h.textContent,text:p.textContent}]
+          })
+        });
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.detail||'Slack send failed');
+        status.textContent='Кейс отправлен в Slack.';
+      }catch(e){
+        status.textContent='Ошибка отправки в Slack: '+e.message;
+      }
+    });
+    head.append(h,button,slackButton);d.append(head,status,p);$('output').appendChild(d);
   });
 }
 
