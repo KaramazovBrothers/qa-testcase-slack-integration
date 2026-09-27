@@ -130,3 +130,28 @@ Next verification step:
 5. Generate test cases.
 6. Press `Send to Slack`.
 7. Verify that all generated cases arrive in the configured Slack channel from the authorized user.
+
+
+## Update: region routing, mentions and Slack threads
+
+Implemented:
+
+- Removed the accidental visible `\\n` between generator buttons.
+- The selected generator region is now sent to the backend.
+- Added region-based Slack routing through `config/slack_routes.json`.
+- Added `config/slack_routes.example.json` as a template.
+- Local `config/slack_routes.json` is ignored by Git.
+- Added optional fallback `SLACK_MENTION_USER_IDS` in `.env`.
+- Slack user mentions use Slack user IDs in the form `<@U...>`.
+- Sending generated cases now creates one parent channel message:
+  `@users Привет! Просьба провести тест депозита`
+- Every generated test case is posted as a reply in the parent message thread using `thread_ts`.
+- Multiple generated cases are posted as separate replies in the same thread.
+
+Current routing priority:
+
+1. Region entry in `config/slack_routes.json`.
+2. `default` entry in that file.
+3. Fallback to `SLACK_CHANNEL_ID` and `SLACK_MENTION_USER_IDS` from `.env`.
+
+The route config stores Slack channel IDs and Slack user IDs, not secrets.
