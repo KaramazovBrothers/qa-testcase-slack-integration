@@ -1,8 +1,21 @@
 # Work Project Status
 
+## Handoff: start here
+
+- Source of truth: `main` in `KaramazovBrothers/qa-testcase-slack-integration`. Read this file and the current source before continuing; do not rely on old local previews.
+- Active UI: `app/static/generator.html`; backend and request model: `app/main.py`; Slack transport: `app/slack_client.py`; routing: `app/slack_routes.py`.
+- The separate aggregator repository is out of scope. Its minimal suite must not be expanded. This repository uses the full suite only.
+- Latest agreed change: the optional HPP return-button precheck runs once per exact platform per generation, in its first case. The next cases on that same platform omit only this precheck.
+- Example: Android Chrome regular case checks the return button; a later Android Chrome underpayment case does not. Two Desktop Chrome QR cases share one precheck. Other mobile browsers, native, WebView and PWA are distinct platforms where supported by the license.
+- The precheck contains button click, cashier/pending-popup/authentication verification, then “Повторить необходимые действия для возврата на страницу провайдера.” Ordinary post-payment returns and their pending-popup checks remain.
+- `generateCases()` owns `cashierReturnPlatforms`, reset on every generation. `add()` computes `checkCashierReturn`; `baseSteps()` accepts this explicit flag. H2H and an unchecked checkbox never add the precheck. USD/local-currency cases share coverage when the platform is identical.
+- The user has authorized publishing this update to `main` as a new commit together with this handoff. Earlier implementation: `f3f58d4`; earlier status update: `3f8065f`. Consult Git history for the commit containing this latest update.
+- Next step is user review of the backend-served UI and live Slack delivery; no latest live-send result has been reported. Do not send Slack messages merely to validate code without user authorization.
+- Local preview in the current conversation: `generator-slack-preview.html`. The repository path above is authoritative for another machine/chat. No local helper scripts are required to run the app.
+
 ## Current milestone
 
-Slack OAuth MVP was verified in the personal test workspace `KorolevForTest`. The generator and region-based Slack delivery are implemented. Latest generator, editing and per-case instructions changes were pushed to `main` in commit [`f3f58d4ffb97b11395d2187d2b4c6fcff389fa44`](https://github.com/KaramazovBrothers/qa-testcase-slack-integration/commit/f3f58d4ffb97b11395d2187d2b4c6fcff389fa44). User review and live verification of these latest changes are pending.
+Slack OAuth MVP was verified in the personal test workspace `KorolevForTest`. The generator and region-based Slack delivery are implemented. Generator, editing and per-case instructions changes were pushed to `main` in commit [`f3f58d4ffb97b11395d2187d2b4c6fcff389fa44`](https://github.com/KaramazovBrothers/qa-testcase-slack-integration/commit/f3f58d4ffb97b11395d2187d2b4c6fcff389fa44). User review and live verification of these latest changes are pending.
 
 Verified on 2026-09-27:
 
@@ -191,7 +204,7 @@ HPP return to cashier:
 
 - Added the checkbox “Кнопка возврата в кассу присутствует на главном экране провайдера”.
 - It is hidden/disabled for H2H and has no effect there.
-- When enabled for HPP, after opening the provider page the case clicks “Вернуться в кассу”, verifies that the cashier is open on the original platform, pending popup is displayed and the user remains authorized.
+- When enabled for HPP, only the first case on each platform performs this precheck: after opening the provider page it clicks “Вернуться в кассу”, verifies that the cashier is open on the original platform, pending popup is displayed and the user remains authorized.
 - The next step uses the user's final wording: “Повторить необходимые действия для возврата на страницу провайдера.”
 - Earlier explicit instructions to choose the method and enter the amount again were removed.
 - Cashier-return steps also check “Касса открыта, пользователю отображается pending popup”, following the user's requested expectation.
@@ -217,3 +230,12 @@ Validation and delivery:
 - These are local/automated checks, not proof of a live Slack send for the latest version. No live Slack messages were sent during this change.
 - The user authorized pushing and required a separate new commit. Commit `f3f58d4ffb97b11395d2187d2b4c6fcff389fa44` was pushed to `main`; the aggregator repository was not changed.
 - Next action: user reviews the backend-served generator and verifies actual Slack delivery.
+
+## Latest verification: return-button deduplication
+
+- Targeted automated checks passed for 2,880 generated cases across PINCO/WL, COM and Zazino, HPP/H2H, return-button on/off, and combinations of QR, OneClick, receipt, timer and cancellation settings.
+- Verified exactly one precheck in the first case of each platform when enabled, none in subsequent cases, and none for H2H or a disabled option.
+- Verified the accompanying “Повторить необходимые действия…” step follows the same once-per-platform rule.
+- Repeated generation resets coverage and produces the same results; it does not remember a platform from a previous run.
+- The previous 87,552-configuration checks describe an earlier stage, not a complete rerun of the current final version.
+- Latest change touches only the generator and this status file. Backend comment delivery remains as implemented in `f3f58d4`.
