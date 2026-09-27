@@ -48,13 +48,12 @@
 <h2>Настройки</h2>
 <div class="grid">
 <label>Тип интеграции<span class="select-wrap"><select data-id="integration"><option>HPP</option><option>H2H</option></select></span></label>
-<label>Набор тестов<span class="select-wrap"><select data-id="suite"><option value="minimal">Минимальный</option><option value="full">Максимальный</option></select></span></label>
 <label>Лицензия<span class="select-wrap"><select data-id="license"><option value="pinco">PINCO / WL</option><option value="com">COM</option></select></span></label>
 <label>Регион<span class="select-wrap"><select data-id="region"><option value="TR">Turkey</option><option value="AZ">Azerbaijan</option><option value="CL">Chile</option><option value="CA">Canada</option><option value="GT">Guatemala</option><option value="KZ">Kazakhstan</option><option value="BO">Bolivia</option><option value="UZ">Uzbekistan</option><option value="IN">India</option><option value="KG">Kyrgyzstan</option><option value="BD">Bangladesh</option><option value="MX">Mexico</option><option value="EC">Ecuador</option><option value="HN">Honduras</option><option value="TJ">Tajikistan</option><option value="NG">Nigeria</option><option value="KE">Kenya</option><option value="CG">Congo</option><option value="RU">Russia</option></select></span></label>
 <label>Изменение суммы при оплате<span class="select-wrap"><select data-id="amountChange"><option value="yes">Доступно</option><option value="no">Недоступно</option></select></span></label>
 
 </div>
-<p data-id="minimalNote" class="note">При выборе минимального набора недостающие кейсы заказать у региональных QA без оплаты. Обязательно проверить открытие платёжных приложений через QR или кнопку на мобильных устройствах, включая WebView и нативное приложение, если метод поддерживает такие переходы.</p><div data-id="regionInfo" class="note"></div>
+<div data-id="regionInfo" class="note"></div>
 </div>
 
 <div class="box">
@@ -149,16 +148,16 @@ function updateUI(){
   const r=currentRegion();
   $('regionInfo').innerHTML='Валюта: <b>'+r.currency+'</b><br>Android: '+r.android.join(', ')+'<br>iOS: '+r.ios.join(', ')+'<br>Desktop: '+r.desktop.join(', ');
   $('qrSettings').classList.toggle('hidden',!checked('qr'));
-  $('minimalNote').classList.toggle('hidden',$('suite').value!=='minimal');
+  $('minimalNote').classList.toggle('hidden',true);
   const apps=licenseApps();const names=[];if(apps.native)names.push('Нативное приложение');if(apps.webview)names.push('WebView');if(names.length)$('regionInfo').innerHTML+='<br>Приложения: '+names.join(', ');
   const com=$('license').value==='com';
   $('comBox').classList.toggle('hidden',!com);
-  $('usdOverWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||$('suite').value==='minimal');
-  $('usdUnderWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||$('suite').value!=='minimal');
-  $('overWrap').classList.toggle('hidden',$('suite').value==='minimal');
-  $('overRequestWrap').classList.toggle('hidden',$('suite').value==='minimal');
-  $('usdOverRequestWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||$('suite').value==='minimal');
-  $('usdUnderRequestWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||$('suite').value!=='minimal');
+  $('usdOverWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||false);
+  $('usdUnderWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||true);
+  $('overWrap').classList.toggle('hidden',false);
+  $('overRequestWrap').classList.toggle('hidden',false);
+  $('usdOverRequestWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||false);
+  $('usdUnderRequestWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||true);
 }
 function header(platform, amount, currency, usd){
   return [
@@ -187,7 +186,7 @@ function baseSteps(platform,usd=false){
 }
 function generateCases(){
  $('message').textContent='';
- const r=currentRegion(),full=$('suite').value==='full',change=$('amountChange').value==='yes',com=$('license').value==='com',qr=checked('qr'),receipt=checked('receipt');
+ const r=currentRegion(),full=true,change=$('amountChange').value==='yes',com=$('license').value==='com',qr=checked('qr'),receipt=checked('receipt');
  const cases=[],used=new Set(),browsers=platformList(r),amount=val('amount','AMOUNT');
  const scanners=$('qrScanner').value==='both'?['camera','app']:[$('qrScanner').value];let scanIndex=0;
  function pay(s,platform,paid,currency){
