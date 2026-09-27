@@ -3,12 +3,19 @@ import httpx
 SLACK_POST_MESSAGE_URL = "https://slack.com/api/chat.postMessage"
 
 
-async def post_message(user_token: str, channel_id: str, text: str) -> dict:
+async def post_message(
+    user_token: str,
+    channel_id: str,
+    text: str,
+    thread_ts: str | None = None,
+) -> dict:
     headers = {
         "Authorization": f"Bearer {user_token}",
         "Content-Type": "application/json; charset=utf-8",
     }
     payload = {"channel": channel_id, "text": text}
+    if thread_ts:
+        payload["thread_ts"] = thread_ts
 
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.post(SLACK_POST_MESSAGE_URL, headers=headers, json=payload)
