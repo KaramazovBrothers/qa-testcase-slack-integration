@@ -25,6 +25,7 @@ USER_TOKEN: Optional[str] = None
 class GeneratedCase(BaseModel):
     title: str
     text: str
+    comment: str = ""
 
 
 class SendCasesRequest(BaseModel):
@@ -128,6 +129,13 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
         message = f"{case.title}\n\n{case.text}"
         await post_message(user_token, channel_id, message, thread_ts=thread_ts)
 
+        if case.comment.strip():
+            await post_message(
+                user_token, channel_id,
+                f"Дополнительная информация:\n{case.comment.strip()}",
+                thread_ts=thread_ts,
+            )
+
         thread_ts_values.append(thread_ts)
         sent += 1
 
@@ -138,3 +146,5 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
         "mentioned_users": user_ids,
         "thread_ts": thread_ts_values,
     }
+
+

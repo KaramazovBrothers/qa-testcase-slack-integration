@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Проверка генератора — Slack</title></head><body>
 <style>
 .dg14{--ink:#182c48;--muted:#62758d;--border:#dce5ef;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;color:var(--ink);background:#f3f6fa;padding:clamp(16px,3vw,32px);border-radius:18px;max-width:1160px;margin:16px auto;box-sizing:border-box;isolation:isolate}
 .dg14 *{box-sizing:border-box}.dg14 .hero{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:24px}.dg14 .eyebrow{font-size:11px;letter-spacing:2px;color:#356bc0;font-weight:800}.dg14 h1{font-size:clamp(22px,3vw,30px)!important;line-height:1.25!important;color:var(--ink)!important;margin:7px 0!important;border:0!important}.dg14 h2{font-size:18px!important;color:var(--ink)!important;margin:0 0 16px!important;border:0!important}.dg14 h3{font-size:16px!important;margin:0 0 12px!important;color:var(--ink)!important}.dg14 p{margin:10px 0}.dg14 .box{background:#fff;border:1px solid var(--border);box-shadow:0 3px 10px #1d365006;border-radius:12px;padding:22px;margin-bottom:18px}.dg14 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.dg14 label{display:flex!important;flex-direction:column!important;gap:7px;font-size:13px!important;font-weight:600!important;color:#354961!important;position:relative}.dg14 input:not([type=checkbox]),.dg14 select{display:block!important;width:100%!important;max-width:none!important;height:44px!important;min-height:44px!important;padding:10px 12px!important;border:1px solid #bdccdc!important;border-radius:7px!important;background-color:#fff!important;color:#172b4d!important;font:14px/22px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;box-shadow:none!important;margin:0!important}.dg14 input:focus,.dg14 select:focus{outline:3px solid #c8dcff!important;border-color:#2869cf!important}.dg14 .select-wrap{position:relative;display:block;width:100%}.dg14 .select-wrap:after{content:"";position:absolute;right:16px;top:16px;width:8px;height:8px;border-right:2px solid #446080;border-bottom:2px solid #446080;transform:rotate(45deg);pointer-events:none}.dg14 select{appearance:none!important;-webkit-appearance:none!important;background-image:none!important;padding-right:40px!important;cursor:pointer!important}.dg14 label.check{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;padding:10px 0;margin:0;font-size:14px!important;font-weight:500!important}.dg14 input[type=checkbox]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;position:static!important;opacity:1!important;width:18px!important;height:18px!important;flex-shrink:0;margin:0!important;accent-color:#2563cf}.dg14 .note{background:#edf4fd;border:1px solid #d9e7fa;color:#365574;padding:12px 15px;border-radius:8px;font-size:13px;margin-top:16px}.dg14 details{border-top:1px solid var(--border);padding-top:14px;margin-top:14px}.dg14 summary{cursor:pointer;font-weight:650;list-style:disclosure-closed;padding:4px 0;color:#29486c}.dg14 details[open]>summary{list-style:disclosure-open}.dg14 ol{padding-left:22px}.dg14 li{margin:8px 0}.dg14 button{font:600 14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;cursor:pointer;border:0!important;border-radius:8px!important;padding:12px 19px!important;background:#2563cf!important;color:white!important;box-shadow:none!important;height:auto!important}.dg14 button:focus-visible{outline:3px solid #90b9fa!important;outline-offset:3px}.dg14 button:hover{filter:brightness(.96)}.dg14 .actions{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 8px}.dg14 button.secondary{background:#fff!important;color:#28558d!important;border:1px solid #bfcee1!important}.dg14 .languages{display:flex;gap:3px;padding:4px;background:#e5ecf5;border-radius:10px;flex-shrink:0}.dg14 .languages button{background:transparent!important;color:#566d89!important;padding:7px 12px!important;font-size:12px!important}.dg14 .languages button[aria-pressed=true]{background:#fff!important;color:#1959b8!important;box-shadow:0 1px 4px #233e5620!important}.dg14 .case{background:white;border:1px solid var(--border);border-radius:12px;padding:20px;margin:16px 0}.dg14 pre{white-space:pre-wrap!important;word-break:break-word!important;overflow-wrap:anywhere;font:13px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace!important;background:#f6f8fb!important;color:#203651!important;padding:18px!important;border-radius:8px!important;border:0!important;margin:0!important}.dg14 .msg{margin:12px 0;color:#315783;font-weight:600;overflow-wrap:anywhere}.dg14 .hidden{display:none!important}.dg14 .thumbnail{display:inline-block!important;padding:4px!important;background:#fff!important;border:1px solid var(--border)!important;max-width:320px!important;margin:8px 0!important;cursor:zoom-in!important}.dg14 .thumbnail img{display:block!important;width:auto!important;max-width:100%!important;height:auto!important;max-height:170px!important;object-fit:contain!important;border:0!important}.dg14 figcaption,.dg14 .image-hint{font-size:12px;color:var(--muted)}.dg14 .lightbox{position:fixed!important;inset:0!important;margin:auto!important;width:94vw!important;max-width:1500px!important;max-height:94vh!important;padding:46px 12px 12px!important;border:0!important;border-radius:12px;background:#fff;overflow:auto;z-index:2147483647}.dg14 .lightbox:not([open]){display:none!important}.dg14 .lightbox::backdrop{background:rgba(9,23,43,.8)}.dg14 .lightbox img{display:block;max-width:100%;height:auto;margin:auto}.dg14 .close-image{position:absolute!important;right:12px;top:8px;background:#eef2f8!important;color:#243c5b!important;padding:4px 12px!important;font-size:24px!important}@media(max-width:680px){.dg14 .grid{grid-template-columns:1fr}.dg14 .hero{align-items:flex-start;flex-direction:column}.dg14 .box{padding:16px}}
@@ -71,6 +73,7 @@
 
 <div class="box">
 <h2>Дополнительные возможности метода</h2>
+<label class="check" data-id="returnToCashierWrap"><input data-id="returnToCashier" type="checkbox"> Кнопка возврата в кассу присутствует на главном экране провайдера</label>
 <label class="check"><input data-id="receipt" type="checkbox"> Подгрузка чека доступна и обязательна</label>
 <label class="check"><input data-id="oneClick" type="checkbox"> OneClick / переход по ссылке</label>
 <label class="check"><input data-id="qr" type="checkbox"> Оплата по QR</label>
@@ -100,13 +103,34 @@ translations['Сумма заявки при недоплате']=['Underpayment
 translations['Сумма заявки при недоплате USD']=['Underpayment request amount USD','Сума заявки при недоплаті USD'];
 translations['Приложения:']=['Apps:','Застосунки:'];
 const russianRegions={"Turkey": "Турция", "Azerbaijan": "Азербайджан", "Chile": "Чили", "Canada": "Канада", "Guatemala": "Гватемала", "Kazakhstan": "Казахстан", "Bolivia": "Боливия", "Uzbekistan": "Узбекистан", "India": "Индия", "Kyrgyzstan": "Кыргызстан", "Bangladesh": "Бангладеш", "Mexico": "Мексика", "Ecuador": "Эквадор", "Honduras": "Гондурас", "Tajikistan": "Таджикистан", "Nigeria": "Нигерия", "Kenya": "Кения", "Congo": "Конго", "Russia": "Россия"};
+translations['PWA приложение']=['PWA app','PWA застосунок'];
+translations[', установить PWA приложение через меню браузера и открыть установленное PWA приложение.']=[', install the PWA app from the browser menu and open the installed PWA app.',', встановити PWA застосунок через меню браузера та відкрити встановлений PWA застосунок.'];
+const paymentTitleFeatures=[
+ ['Отсканировать QR-код обычной камерой телефона и открыть распознанную ссылку.','QR: сканирование камерой телефона','QR: scan with the phone camera','QR: сканування камерою телефона'],
+ ['Открыть платёжное приложение на телефоне и отсканировать QR-код встроенной камерой приложения.','QR: сканирование камерой платёжного приложения','QR: scan with the payment app camera','QR: сканування камерою платіжного застосунку'],
+ ['Скачать QR-код на мобильное устройство.','QR: скачать и загрузить в платёжное приложение','QR: download and upload to the payment app','QR: завантажити та додати до платіжного застосунку'],
+ ['Нажать кнопку перехода в платёжное приложение.','переход по кнопке в платёжное приложение','open the payment app using the button','перехід кнопкою до платіжного застосунку']
+];
+paymentTitleFeatures.forEach(([,label,en,uk])=>translations[label]=[en,uk]);
+translations['QR: оплата по сохранённым платёжным данным']=['QR: pay using saved payment details','QR: оплата за збереженими платіжними даними'];
+const extraTranslations={
+ 'Повторить необходимые действия для возврата на страницу провайдера.':['Repeat the necessary actions to return to the provider page.','Повторити необхідні дії для повернення на сторінку провайдера.'],
+ 'Убедиться, что касса открыта и пользователю отображается pending popup.':['Verify that the cashier is open and the pending popup is displayed.','Переконатися, що каса відкрита й користувачу відображається pending popup.'],
+ 'Кнопка возврата в кассу присутствует на главном экране провайдера':['A return-to-cashier button is present on the provider main screen','На головному екрані провайдера є кнопка повернення до каси'],
+ 'Нажать кнопку «Вернуться в кассу».':['Click the Return to cashier button.','Натиснути кнопку «Повернутися до каси».'],
+ 'Убедиться, что касса открыта на исходной платформе, пользователю отображается pending popup и пользователь остался авторизован.':['Verify that the cashier is open on the original platform, the pending popup is displayed, and the user remains signed in.','Переконатися, що каса відкрита на початковій платформі, користувачу відображається pending popup і користувач залишився авторизованим.'],
+ 'проверка кнопки возврата в кассу':['return-to-cashier button check','перевірка кнопки повернення до каси'],
+ 'Не выполнять оплату. Вернуться из платёжного приложения к исходной платёжной форме на тестируемой платформе и убедиться, что заявка доступна.':['Do not pay. Return from the payment app to the original payment form on the platform under test and verify that the request is available.','Не виконувати оплату. Повернутися з платіжного застосунку до початкової платіжної форми на тестованій платформі та переконатися, що заявка доступна.']
+};
+Object.assign(translations,extraTranslations);
+const extraPhrasePattern=Object.keys(extraTranslations).sort((a,b)=>b.length-a.length).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
 const phraseKeys=Object.keys(translations).filter(k=>k.length>2).sort((a,b)=>b.length-a.length);
 const phraseRE=new RegExp("При\\ выборе\\ минимального\\ набора\\ недостающие\\ кейсы\\ заказать\\ у\\ региональных\\ QA\\ без\\ оплаты\\.\\ Обязательно\\ проверить\\ открытие\\ платёжных\\ приложений\\ через\\ QR\\ или\\ кнопку\\ на\\ мобильных\\ устройствах,\\ включая\\ WebView\\ и\\ нативное\\ приложение,\\ если\\ метод\\ поддерживает\\ такие\\ переходы\\.|Укажите\\ возможности\\ метода:\\ изменение\\ суммы,\\ обязательный\\ чек,\\ OneClick,\\ QR,\\ таймер\\ и\\ кнопка\\ отмены\\.\\ Для\\ QR\\ выберите\\ способ\\ сканирования\\ и\\ поведение\\ на\\ мобильных\\ устройствах\\.|Если\\ после\\ отмены\\ или\\ окончания\\ таймера\\ кнопка\\ «Я\\ оплатил»\\ остаётся\\ доступна,\\ нажать\\ её\\.\\ Если\\ кнопка\\ недоступна,\\ показать\\ состояние\\ кассы\\ на\\ видео\\.|—\\ полный\\ набор\\ применимых\\ сценариев\\ и\\ региональное\\ покрытие\\ браузеров\\ для\\ случая,\\ когда\\ провайдер\\ готов\\ выполнить\\ все\\ проверки\\ самостоятельно\\.|После\\ фактической\\ оплаты\\ подождать\\ и\\ убедиться,\\ что\\ форма\\ с\\ истёкшим\\ таймером\\ не\\ реагирует\\ на\\ оплату\\.\\ Затем\\ самостоятельно\\ вернуться\\ в\\ кассу\\.|Для\\ COM\\ обязательна\\ проверка\\ с\\ отдельным\\ пользователем,\\ у\\ которого\\ валюта\\ аккаунта\\ USD\\.\\ Проверка\\ по\\ возможности\\ совмещается\\ с\\ другим\\ кейсом\\.|Только\\ после\\ реальной\\ оплаты\\ создать\\ диспут\\ по\\ этой\\ заявке\\.\\ Если\\ оплата\\ не\\ состоялась,\\ диспут\\ и\\ callback\\ по\\ этому\\ сценарию\\ не\\ инициировать\\.|—\\ минимально\\ необходимый\\ объём\\ обязательных\\ тестов\\ для\\ случая,\\ когда\\ провайдер\\ готов\\ провести\\ ограниченное\\ количество\\ проверок\\.|Пример\\ настроек\\ в\\ админке:\\ в\\ Available\\ Payment\\ Methods\\ указан\\ один\\ метод\\ dk_26324,\\ в\\ Unrestricted\\ display\\ выбран\\ Restricted\\.|\\ Просим\\ включить\\ в\\ видеозапись\\ экран\\ мобильного\\ телефона:\\ момент\\ сканирования\\ QR\\-кода\\ и\\ весь\\ последующий\\ процесс\\ оплаты\\.|Авторизоваться\\ этим\\ пользователем\\ на\\ сайте\\ и\\ проверить,\\ что\\ в\\ депозитной\\ вкладке\\ доступен\\ только\\ тестируемый\\ метод\\.|\\ и\\ нажать\\ кнопку\\ отмены\\.\\ Подтвердить\\ отмену,\\ если\\ требуется\\.\\ Если\\ кнопка\\ уже\\ недоступна,\\ показать\\ это\\ на\\ видео\\.|Установить\\ и\\ открыть\\ WebView\\-приложение\\ из\\ APK\\-файла,\\ предоставленного\\ вместе\\ с\\ запросом\\ на\\ тестирование\\.|Не\\ оплачивать\\ заявку\\ до\\ окончания\\ таймера\\.\\ Дождаться\\ его\\ завершения\\ и\\ показать\\ состояние\\ страницы\\.|,\\ скачать\\ нативное\\ приложение\\ из\\ футера\\ сайта\\ и\\ установить\\ его\\.\\ Открыть\\ установленное\\ приложение\\.|Выберите\\ тип\\ интеграции,\\ набор,\\ лицензию\\ и\\ регион\\.\\ Валюта\\ и\\ браузеры\\ подставятся\\ автоматически\\.|Открыть\\ платёжное\\ приложение\\ на\\ телефоне\\ и\\ отсканировать\\ QR\\-код\\ встроенной\\ камерой\\ приложения\\.|\\ по\\ заранее\\ сохранённым\\ платёжным\\ данным\\.\\ Если\\ оплата\\ недоступна,\\ зафиксировать\\ причину\\.|Загрузить\\ невалидный\\ чек\\ —\\ чек\\ от\\ другой\\ операции,\\ не\\ соответствующий\\ текущему\\ платежу\\.|и\\ проверьте\\ результат\\.\\ Если\\ оставлены\\ параметры\\-заглушки,\\ замените\\ их\\ перед\\ отправкой\\.|Открыть\\ платёжное\\ приложение\\ и\\ загрузить\\ сохранённое\\ изображение\\ QR\\ для\\ распознавания\\.|Заполните\\ данные\\ аккаунта,\\ метода\\ и\\ суммы\\.\\ Для\\ COM\\ заполните\\ блок\\ USD\\-пользователя\\.|и\\ отправьте\\ запрос\\ агрегатору\\.\\ Если\\ в\\ наборе\\ есть\\ WebView,\\ приложите\\ APK\\-файл\\.|После\\ создания\\ диспута\\ отправить\\ нам\\ callback\\ с\\ фактически\\ оплаченной\\ суммой:\\ |Отсканировать\\ QR\\-код\\ обычной\\ камерой\\ телефона\\ и\\ открыть\\ распознанную\\ ссылку\\.|Скопировать\\ необходимые\\ платёжные\\ реквизиты\\ и\\ использовать\\ их\\ для\\ перевода\\.|Авторизоваться\\ указанным\\ отдельным\\ пользователем\\ с\\ валютой\\ аккаунта\\ USD\\.|Загрузить\\ валидный\\ чек\\ выполненного\\ перевода\\ и\\ убедиться,\\ что\\ он\\ принят\\.|Пример\\ настроек\\ Cashdesk\\.\\ Используйте\\ свой\\ аккаунт\\ и\\ тестируемый\\ метод\\.|Для\\ отдельного\\ USD\\-пользователя\\ лицензии\\ COM\\ выполните\\ те\\ же\\ настройки\\.|Для\\ COM\\ подготовьте\\ также\\ отдельного\\ USD\\-пользователя\\ по\\ этим\\ же\\ шагам\\.|оставить\\ только\\ один\\ метод\\ оплаты\\ —\\ тот,\\ который\\ тестируем,\\ —\\ и\\ нажать|Убедиться,\\ что\\ именно\\ по\\ кнопке\\ открылось\\ нужное\\ платёжное\\ приложение\\.|\\ кнопкой\\ подтверждения\\ на\\ странице\\ провайдера,\\ если\\ она\\ предусмотрена|Отменить\\ заявку\\ кнопкой\\ отмены\\ и\\ подтвердить\\ отмену,\\ если\\ требуется\\.|Не\\ удалось\\ скопировать\\ автоматически\\.\\ Выделите\\ текст\\ вручную\\.|Продуктовая\\ админка:\\ Is\\ test\\ включён,\\ Certified\\ Player\\ —\\ YES|Нажать\\ кнопку\\ подтверждения\\ оплаты,\\ если\\ она\\ предусмотрена\\.|\\.\\ Показать\\ на\\ видео\\ реакцию\\ формы\\ и\\ отображаемое\\ сообщение\\.|Дождаться\\ завершения\\ обработки\\ оплаты\\ и\\ возврата\\ в\\ кассу\\.|верифицировать\\ пользователя\\ и\\ попросить\\ включить\\ отметку|Создать\\ нового\\ пользователя\\ под\\ конкретного\\ агрегатора\\.|Проверить\\ платёжные\\ данные\\ и\\ выполнить\\ оплату\\ на\\ сумму\\ |Просьба\\ записать\\ видео\\ полного\\ флоу\\ от\\ шага\\ 1\\ до\\ шага\\ |Открыть\\ кассу,\\ выбрать\\ вкладку\\ «Пополнить»\\ и\\ метод\\ |Ввести\\ указанную\\ сумму\\ заявки\\ и\\ нажать\\ «Пополнить»\\.|Дождаться\\ открытия\\ платёжной\\ страницы\\ провайдера\\.|После\\ оплаты,\\ не\\ загружая\\ чек,\\ вернуться\\ в\\ кассу\\.|Авторизоваться\\ указанным\\ тестовым\\ пользователем\\.|Оставить\\ QR\\-код\\ открытым\\ на\\ экране\\ компьютера\\.|Нажать\\ кнопку\\ перехода\\ в\\ платёжное\\ приложение\\.|Настройки\\ изменены\\.\\ Сгенерируйте\\ кейсы\\ заново\\.|Скачать\\ QR\\ и\\ загрузить\\ в\\ платёжное\\ приложение|Не\\ заменять\\ чек\\ валидным\\.\\ Вернуться\\ в\\ кассу\\.|Таймер\\ на\\ странице\\ провайдера\\ присутствует|Дождаться\\ платёжных\\ данных\\ в\\ нашей\\ кассе\\.|Переход\\ по\\ кнопке\\ в\\ платёжное\\ приложение|Нажмите\\ на\\ изображение,\\ чтобы\\ увеличить\\.|Текст\\ выделен\\.\\ Нажмите\\ Ctrl\\+C\\ или\\ Cmd\\+C\\.|Через\\ запрос\\ финансистам\\ в\\ Slack\\-канале|Скачать\\ QR\\-код\\ на\\ мобильное\\ устройство\\.|Вернуться\\ к\\ платёжной\\ форме\\ провайдера\\.|Подгрузка\\ чека\\ доступна\\ и\\ обязательна|Пример\\ Is\\ test\\ в\\ продуктовой\\ админке|Способ\\ сканирования\\ QR\\ с\\ компьютера|Кнопка\\ отмены\\ платежа\\ присутствует|\\ \\+\\ без\\ загрузки\\ обязательного\\ чека|2\\.\\ Сформировать\\ запрос\\ агрегатору|Дополнительные\\ возможности\\ метода|Проверки\\ депозитов\\ у\\ агрегатора|COM:\\ отдельный\\ USD\\-пользователь|Фактическая\\ сумма\\ переплаты\\ USD|Сразу\\ после\\ перевода\\ вернуться\\ |Сохранить\\ платёжные\\ данные\\ ДО\\ |Фактическая\\ сумма\\ должна\\ быть\\ |оплата\\ после\\ окончания\\ таймера|Попробовать\\ подтвердить\\ оплату|Не\\ удалось\\ сформировать\\ кейсы\\.|Основной\\ пользователь\\ и\\ метод|В\\ админке\\ Cashdesk\\ в\\ разделе|OneClick\\ /\\ переход\\ по\\ ссылке|Камера\\ платёжного\\ приложения|к\\ платёжной\\ форме\\ провайдера|1\\.\\ Подготовить\\ пользователя|Сумма\\ фактической\\ переплаты|Сумма\\ фактической\\ недоплаты|QR\\ на\\ мобильных\\ устройствах|\\ выполнить\\ оплату\\ на\\ сумму\\ |Сначала\\ сгенерируйте\\ кейсы\\.|Подготовка\\ и\\ запуск\\ тестов|Изменение\\ суммы\\ при\\ оплате|Нажать\\ кнопку\\ «Я\\ оплатил»\\.|Cashdesk\\ payment\\ request:|\\ для\\ последующей\\ оплаты\\.|Обычная\\ камера\\ телефона|в\\ продуктовой\\ админке\\.|Сгенерированные\\ кейсы:|Оба\\ способа\\ работают|\\ сохранить\\ реквизиты|отмена,\\ затем\\ оплата|оплата,\\ затем\\ отмена|\\ кнопкой\\ «Я\\ оплатил»|Сгенерировать\\ кейсы|Нативное\\ приложение|\\ и\\ платёжную\\ ссылку|Ошибка\\ генератора:\\ |Закрыть\\ изображение|Максимальный\\ набор|Вернуться\\ в\\ кассу\\.|Кейсы\\ скопированы\\.|Минимальный\\ набор|окончания\\ таймера|\\ \\+\\ невалидный\\ чек|Account\\ currency:|Сумма\\ заявки\\ USD|успешный\\ депозит|\\ \\+\\ валидный\\ чек|Operation\\ type:|Payment\\ method:|Копировать\\ всё|Тип\\ интеграции|\\ суммы\\ заявки\\.|Payment\\ method|отмены\\ заявки|Предусловие:\\ |Набор\\ тестов|Максимальный|Сумма\\ заявки|Оплата\\ по\\ QR|Integration:|Минимальный|Недоступно|Account\\ ID|AccountID:|Azerbaijan|Kazakhstan|Uzbekistan|Kyrgyzstan|Bangladesh|Tajikistan|Настройки|\\ и\\ QR\\-код|переплата|недоплата|Platform:|Password:|Guatemala|Лицензия|Доступно|Открыть\\ |Site\\ URL|Password|Honduras|выбрать|Нажмите|Валюта:|в\\ кассу|Region:|deposit|Bolivia|Ecuador|Nigeria|Регион|После\\ |отмены|больше|меньше|оплата|login:|Turkey|Canada|Mexico|Russia|Login|Site:|Chile|India|Kenya|Congo|Шаг\\ |Sum:|\\ в\\ |До\\ ",'g');
 function translate(text){
  if(language==='ru'){const exact={'Site URL':'Адрес сайта','Payment method':'Метод оплаты','Account ID':'ID аккаунта','Login':'Логин','Password':'Пароль','Account ID USD':'ID USD-аккаунта','Login USD':'Логин USD','Password USD':'Пароль USD'};if(exact[text])return exact[text];return text.replace(/Turkey|Azerbaijan|Chile|Canada|Guatemala|Kazakhstan|Bolivia|Uzbekistan|India|Kyrgyzstan|Bangladesh|Mexico|Ecuador|Honduras|Tajikistan|Nigeria|Kenya|Congo|Russia/g,x=>russianRegions[x]);}
  const index=language==='en'?0:1;
  if(translations[text])return translations[text][index];
- return text.replace(phraseRE,x=>translations[x][index]);
+ return text.replace(new RegExp(extraPhrasePattern+'|'+paymentTitleFeatures.map(x=>x[1]).join('|')+'|QR: оплата по сохранённым платёжным данным|, установить PWA приложение через меню браузера и открыть установленное PWA приложение\\.|PWA приложение|'+phraseRE.source,'g'),x=>translations[x][index]);
 }
 
 'use strict';
@@ -116,7 +140,7 @@ const $=id=>root.querySelector('[data-id="'+id+'"]');
 const val=(id,fallback)=>{const el=$(id); const x=el&&el.value.trim(); if(protectValues&&x){const token='⟦VALUE'+protectedValues.length+'⟧';protectedValues.push(x);return token;}return x||fallback;};
 const checked=id=>!!($(id)&&$(id).checked);
 
-const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true},zazino:{native:true,webview:true}};
+const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true},zazino:{native:false,pwa:true,webview:false}};
 function licenseApps(){return LICENSE_CAPABILITIES[$('license').value]||{native:false,webview:false};}
 const LICENSE_DEFAULT_SITES={
   pinco:'https://pinco.win/',
@@ -133,10 +157,12 @@ function platformList(r){
   return p;
 }
 function updateUI(){
+  $('returnToCashierWrap').classList.toggle('hidden',$('integration').value!=='HPP');
+  $('returnToCashier').disabled=$('integration').value!=='HPP';
   const r=currentRegion();
   $('regionInfo').innerHTML='Валюта: <b>'+r.currency+'</b><br>Android: '+r.android.join(', ')+'<br>iOS: '+r.ios.join(', ')+'<br>Desktop: '+r.desktop.join(', ');
   $('qrSettings').classList.toggle('hidden',!checked('qr'));
-  const apps=licenseApps();const names=[];if(apps.webview)names.push('WebView');if(apps.native)names.push('Нативное приложение');if(names.length)$('regionInfo').innerHTML+='<br>Дополнительные платформы: '+names.join(', ');
+  const apps=licenseApps();const names=[];if(apps.webview)names.push('WebView');if(apps.native)names.push('Нативное приложение');if(apps.pwa)names.push('PWA приложение');if(names.length)$('regionInfo').innerHTML+='<br>Дополнительные платформы: '+names.join(', ');
   const com=$('license').value==='com';
   $('comBox').classList.toggle('hidden',!com);
   $('usdOverWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||false);
@@ -165,11 +191,18 @@ function header(platform, amount, currency, usd){
 function baseSteps(platform,usd=false){
  const s=[];
  if(platform==='Нативное приложение')s.push('Открыть '+val('site',defaultSite())+', скачать нативное приложение из футера сайта и установить его. Открыть установленное приложение.');
+ else if(platform==='PWA приложение')s.push('Открыть '+val('site',defaultSite())+', установить PWA приложение через меню браузера и открыть установленное PWA приложение.');
  else if(platform==='WebView')s.push('Установить и открыть WebView-приложение из APK-файла, предоставленного вместе с запросом на тестирование.');
  else s.push('Открыть '+val('site',defaultSite())+' в '+platform+'.');
  s.push(usd?'Авторизоваться указанным отдельным пользователем с валютой аккаунта USD.':'Авторизоваться указанным тестовым пользователем.');
  s.push('Открыть кассу, выбрать вкладку «Пополнить» и метод '+val('method','PAYMENT_METHOD')+'.','Ввести указанную сумму заявки и нажать «Пополнить».');
- s.push($('integration').value==='HPP'?'Дождаться открытия платёжной страницы провайдера.':'Дождаться платёжных данных в нашей кассе.');return s;
+ s.push($('integration').value==='HPP'?'Дождаться открытия платёжной страницы провайдера.':'Дождаться платёжных данных в нашей кассе.');
+ if($('integration').value==='HPP'&&checked('returnToCashier'))s.push(
+  'Нажать кнопку «Вернуться в кассу».',
+  'Убедиться, что касса открыта на исходной платформе, пользователю отображается pending popup и пользователь остался авторизован.',
+  'Повторить необходимые действия для возврата на страницу провайдера.'
+ );
+ return s;
 }
 function generateCases(){
  $('message').textContent='';
@@ -192,6 +225,11 @@ function generateCases(){
   const sum=kind==='over'?(usd?val('usdOverRequest','USD_OVER_REQUEST_AMOUNT'):val('overRequest','OVER_REQUEST_AMOUNT')):kind==='under'?(usd?val('usdUnderRequest','USD_UNDER_REQUEST_AMOUNT'):val('underRequest','UNDER_REQUEST_AMOUNT')):usd?val('usdAmount','USD_AMOUNT'):amount,currency=usd?'USD':r.currency;
   let paid=sum;if(kind==='over')paid=usd?val('usdOverPaid','USD_OVERPAY_ACTUAL_AMOUNT'):val('overPaid','OVERPAY_ACTUAL_AMOUNT');if(kind==='under')paid=usd?val('usdUnderPaid','USD_UNDERPAY_ACTUAL_AMOUNT'):val('underPaid','UNDERPAY_ACTUAL_AMOUNT');
   const s=baseSteps(platform,usd);let pre='';
+  if(!platform.startsWith('Desktop')&&(qr&&$('qrMobile').value==='button'||checked('oneClick'))&&(kind==='expiry'||kind==='before'||qr&&$('qrMobile').value==='download'))s.push(
+   'Нажать кнопку перехода в платёжное приложение.',
+   'Убедиться, что именно по кнопке открылось нужное платёжное приложение.',
+   'Не выполнять оплату. Вернуться из платёжного приложения к исходной платёжной форме на тестируемой платформе и убедиться, что заявка доступна.'
+  );
   if(kind==='expiry'||kind==='before'){
    pre='Сохранить платёжные данные ДО '+(kind==='expiry'?'окончания таймера':'отмены заявки')+'.';
    s.push('До '+(kind==='expiry'?'окончания таймера':'отмены заявки')+' сохранить реквизиты'+(qr?' и QR-код':checked('oneClick')&&!platform.startsWith('Desktop')?' и платёжную ссылку':'')+' для последующей оплаты.');
@@ -213,13 +251,18 @@ function generateCases(){
    s.push('Дождаться завершения обработки оплаты и возврата в кассу.');
   }
   const titles={regular:'успешный депозит',over:'переплата',under:'недоплата',expiry:'оплата после окончания таймера',before:'отмена, затем оплата',after:'оплата, затем отмена'};
-  cases.push({title:platform+' — '+(usd?'USD + ':'')+titles[kind],platform,sum,currency,usd,steps:s,pre,receiptIndex,kind});used.add(platform);
+  const features=paymentTitleFeatures.filter(([step])=>s.includes(step));
+  const paymentFeatures=features.map(feature=>(qr&&feature===paymentTitleFeatures[3]?'QR: ':'')+feature[1]);
+  if(qr&&(kind==='expiry'||kind==='before'))paymentFeatures.push('QR: оплата по сохранённым платёжным данным');
+  const paymentFeature=paymentFeatures.join(' + ');
+  cases.push({title:platform+' — '+(usd?'USD + ':'')+titles[kind]+(paymentFeature?' + '+paymentFeature:''),platform,sum,currency,usd,steps:s,pre,receiptIndex,kind});used.add(platform);
  }
  add(browsers[0],'regular');
  const apps=licenseApps();
- if(change)add(apps.native?'Нативное приложение':browsers[0],full?'over':'under',com);else if(com)add(apps.native?'Нативное приложение':browsers[0],'regular',true);
+ const appPlatform=apps.pwa?'PWA приложение':apps.native?'Нативное приложение':null;
+ if(change)add(appPlatform||browsers[0],full?'over':'under',com);else if(com)add(appPlatform||browsers[0],'regular',true);
  if(full){
-  if(apps.native&&!used.has('Нативное приложение'))add('Нативное приложение','regular');
+  if(appPlatform&&!used.has(appPlatform))add(appPlatform,'regular');
   if(apps.webview)add('WebView',change?'under':'regular');else if(change)add(browsers[0],'under');
   const scenarios=[];if(checked('timer'))scenarios.push('expiry');if(checked('cancel'))scenarios.push('before','after');
   scenarios.forEach(kind=>{
@@ -262,8 +305,19 @@ function generateCases(){
   const wait=c.steps.findIndex(x=>x.startsWith('Дождаться завершения обработки оплаты'));
   c.steps.splice(wait<0?c.steps.length:wait,0,...dispute);
  });
+ cases.forEach(c=>{
+  c.steps=c.steps.flatMap((step,i)=>{
+   const returnsToCashier=/вернуться в кассу|возврата в кассу/i.test(step);
+   const alreadyChecked=(c.steps[i+1]||'').includes('pending popup');
+   return returnsToCashier&&!alreadyChecked?[step,'Убедиться, что касса открыта и пользователю отображается pending popup.']: [step];
+  });
+ });
  return cases.map(c=>({title:c.title,text:header(c.platform,c.sum,c.currency,c.usd).join('\n')+(c.pre?'\n\nПредусловие: '+c.pre:'')+'\n\n'+c.steps.map((x,i)=>'Шаг '+(i+1)+' — '+x).join('\n')+'\n\nПросьба записать видео полного флоу от шага 1 до шага '+c.steps.length+'.'+(qr&&c.platform.startsWith('Desktop')?' Просим включить в видеозапись экран мобильного телефона: момент сканирования QR-кода и весь последующий процесс оплаты.':'')}));
 }
+function readCase(d){
+ return {title:d.querySelector('h3').textContent,text:d.querySelector('pre').textContent,comment:d.querySelector('.case-comment').value.trim()};
+}
+function caseCopyText(d){const c=readCase(d);return c.title+'\n\n'+c.text+(c.comment?'\n\nДополнительная информация:\n'+c.comment:'');}
 function renderCases(cases){
   $('output').innerHTML='';
   $('count').textContent=String(cases.length);
@@ -277,7 +331,20 @@ function renderCases(cases){
     const slackButton=document.createElement('button');slackButton.type='button';slackButton.className='send-case-slack';
     slackButton.textContent='Отправить в Slack';slackButton.setAttribute('aria-label','Отправить в Slack кейс '+(i+1));
     const status=document.createElement('div');status.className='case-copy-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-    button.addEventListener('click',()=>copyText(h.textContent+'\n\n'+p.textContent,status,d,true));
+    const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Редактировать';
+    edit.setAttribute('aria-pressed','false');
+    edit.addEventListener('click',()=>{
+      const editing=edit.getAttribute('aria-pressed')!=='true';
+      edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать';
+      [h,p].forEach(el=>{el.contentEditable=editing?'plaintext-only':'false';el.style.outline=editing?'2px solid #90b9fa':'';});
+      if(editing)p.focus();
+    });
+    const commentLabel=document.createElement('label');commentLabel.textContent='Дополнительные инструкции (необязательно)';commentLabel.style.marginTop='16px';
+    const comment=document.createElement('textarea');comment.className='case-comment';comment.rows=3;
+    comment.placeholder='Будут отправлены в тред под описанием кейса';
+    comment.style.cssText='width:100%;padding:12px;border:1px solid #bdccdc;border-radius:7px;font:inherit;resize:vertical';
+    commentLabel.appendChild(comment);
+    button.addEventListener('click',()=>copyText(caseCopyText(d),status,d,true));
     slackButton.addEventListener('click',async()=>{
       status.textContent='Отправляем кейс в Slack...';
       try{
@@ -286,7 +353,7 @@ function renderCases(cases){
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             region:$('region').value,
-            cases:[{title:h.textContent,text:p.textContent}]
+            cases:[readCase(d)]
           })
         });
         const data=await response.json();
@@ -296,7 +363,7 @@ function renderCases(cases){
         status.textContent='Ошибка отправки в Slack: '+e.message;
       }
     });
-    head.append(h,button,slackButton);d.append(head,status,p);$('output').appendChild(d);
+    head.style.flexWrap='wrap';head.append(h,edit,button,slackButton);d.append(head,status,p,commentLabel);$('output').appendChild(d);
   });
 }
 
@@ -337,10 +404,7 @@ async function copyText(text,status,host,single=false){
 $('sendSlack').addEventListener('click',async()=>{
  const caseNodes=[...root.querySelectorAll('.case')];
  if(!caseNodes.length){$('message').textContent=translate('Сначала сгенерируйте кейсы.');return;}
- const cases=caseNodes.map(c=>({
-   title:c.querySelector('h3').textContent,
-   text:c.querySelector('pre').textContent
- }));
+ const cases=caseNodes.map(readCase);
  $('message').textContent='Отправляем кейсы в Slack...';
  try{
    const response=await fetch('/slack/send-cases',{
@@ -356,7 +420,7 @@ $('sendSlack').addEventListener('click',async()=>{
  }
 });
 $('copyAll').addEventListener('click',()=>{
- const text=[...root.querySelectorAll('.case')].map(c=>c.querySelector('h3').textContent+'\n\n'+c.querySelector('pre').textContent).join('\n\n====================\n\n');
+ const text=[...root.querySelectorAll('.case')].map(caseCopyText).join('\n\n====================\n\n');
  if(!text){$('message').textContent=translate('Сначала сгенерируйте кейсы.');return;}
  copyText(text,$('message'),$('output'));
 });
@@ -367,3 +431,6 @@ root.querySelectorAll('.thumbnail').forEach(button=>button.addEventListener('cli
 dialog.querySelector('button').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>{if(opener)opener.focus();});
 refreshLanguage();root.dataset.ready='1';
 })(document.currentScript && document.currentScript.closest('[data-generator="v18"]') || Array.from(document.querySelectorAll('[data-generator="v18"]')).find(function(el){return el.dataset.ready!=='1';}));</script></div>
+
+</body></html>
+
