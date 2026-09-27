@@ -116,15 +116,19 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
     mentions = " ".join(f"<@{user_id}>" for user_id in user_ids)
     greeting = f"{mentions} Привет! Просьба провести тест депозита".strip()
 
-    parent = await post_message(user_token, channel_id, greeting)
-    thread_ts = parent.get("ts")
-    if not thread_ts:
-        raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
-
     sent = 0
+    thread_ts_values: list[str] = []
+
     for case in payload.cases:
+        parent = await post_message(user_token, channel_id, greeting)
+        thread_ts = parent.get("ts")
+        if not thread_ts:
+            raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
+
         message = f"{case.title}\n\n{case.text}"
         await post_message(user_token, channel_id, message, thread_ts=thread_ts)
+
+        thread_ts_values.append(thread_ts)
         sent += 1
 
     return {
@@ -132,5 +136,5 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
         "sent": sent,
         "channel_id": channel_id,
         "mentioned_users": user_ids,
-        "thread_ts": thread_ts,
+        "thread_ts": thread_ts_values,
     }
