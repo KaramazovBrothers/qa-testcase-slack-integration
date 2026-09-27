@@ -30,7 +30,7 @@
 <h2>Настройки</h2>
 <div class="grid">
 <label>Тип интеграции<span class="select-wrap"><select data-id="integration"><option>HPP</option><option>H2H</option></select></span></label>
-<label>Лицензия<span class="select-wrap"><select data-id="license"><option value="pinco">PINCO / WL</option><option value="com">COM</option></select></span></label>
+<label>Лицензия<span class="select-wrap"><select data-id="license"><option value="pinco">PINCO / WL</option><option value="com">COM</option><option value="zazino">Zazino</option></select></span></label>
 <label>Регион<span class="select-wrap"><select data-id="region"><option value="TR">Turkey</option><option value="AZ">Azerbaijan</option><option value="CL">Chile</option><option value="CA">Canada</option><option value="GT">Guatemala</option><option value="KZ">Kazakhstan</option><option value="BO">Bolivia</option><option value="UZ">Uzbekistan</option><option value="IN">India</option><option value="KG">Kyrgyzstan</option><option value="BD">Bangladesh</option><option value="MX">Mexico</option><option value="EC">Ecuador</option><option value="HN">Honduras</option><option value="TJ">Tajikistan</option><option value="NG">Nigeria</option><option value="KE">Kenya</option><option value="CG">Congo</option><option value="RU">Russia</option></select></span></label>
 <label>Изменение суммы при оплате<span class="select-wrap"><select data-id="amountChange"><option value="yes">Доступно</option><option value="no">Недоступно</option></select></span></label>
 
@@ -116,8 +116,14 @@ const $=id=>root.querySelector('[data-id="'+id+'"]');
 const val=(id,fallback)=>{const el=$(id); const x=el&&el.value.trim(); if(protectValues&&x){const token='⟦VALUE'+protectedValues.length+'⟧';protectedValues.push(x);return token;}return x||fallback;};
 const checked=id=>!!($(id)&&$(id).checked);
 
-const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true}};
+const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true},zazino:{native:true,webview:true}};
 function licenseApps(){return LICENSE_CAPABILITIES[$('license').value]||{native:false,webview:false};}
+const LICENSE_DEFAULT_SITES={
+  pinco:'https://pinco.win/',
+  com:'https://pin-up.world/',
+  zazino:'https://zazino.com/'
+};
+function defaultSite(){return LICENSE_DEFAULT_SITES[$('license').value]||'SITE_URL';}
 function currentRegion(){return REGIONS[$('region').value];}
 function platformList(r){
   const p=[];
@@ -143,7 +149,7 @@ function updateUI(){
 function header(platform, amount, currency, usd){
   return [
     'Cashdesk payment request:',
-    'Site: '+val('site','SITE_URL'),
+    'Site: '+val('site',defaultSite()),
     'Region: '+currentRegion().name,
     'Integration: '+$('integration').value,
     'Platform: '+platform,
@@ -158,9 +164,9 @@ function header(platform, amount, currency, usd){
 }
 function baseSteps(platform,usd=false){
  const s=[];
- if(platform==='Нативное приложение')s.push('Открыть '+val('site','SITE_URL')+', скачать нативное приложение из футера сайта и установить его. Открыть установленное приложение.');
+ if(platform==='Нативное приложение')s.push('Открыть '+val('site',defaultSite())+', скачать нативное приложение из футера сайта и установить его. Открыть установленное приложение.');
  else if(platform==='WebView')s.push('Установить и открыть WebView-приложение из APK-файла, предоставленного вместе с запросом на тестирование.');
- else s.push('Открыть '+val('site','SITE_URL')+' в '+platform+'.');
+ else s.push('Открыть '+val('site',defaultSite())+' в '+platform+'.');
  s.push(usd?'Авторизоваться указанным отдельным пользователем с валютой аккаунта USD.':'Авторизоваться указанным тестовым пользователем.');
  s.push('Открыть кассу, выбрать вкладку «Пополнить» и метод '+val('method','PAYMENT_METHOD')+'.','Ввести указанную сумму заявки и нажать «Пополнить».');
  s.push($('integration').value==='HPP'?'Дождаться открытия платёжной страницы провайдера.':'Дождаться платёжных данных в нашей кассе.');return s;
