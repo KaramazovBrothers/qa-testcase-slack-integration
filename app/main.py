@@ -43,10 +43,6 @@ async def home() -> str:
         <p>Slack connected: <strong>{connected}</strong></p>
         <p><a href="/slack/oauth/start">Connect Slack</a></p>
         <p><a href="/generator">Open testcase generator</a></p>
-        <form method="post" action="/slack/send">
-          <textarea name="text" rows="10" style="width:100%;">Hello from QA testcase integration</textarea><br><br>
-          <button type="submit">Send to Slack</button>
-        </form>
       </body>
     </html>
     """
