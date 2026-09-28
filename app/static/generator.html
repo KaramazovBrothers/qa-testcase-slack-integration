@@ -14,6 +14,8 @@
 .dg14 .case-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}.dg14 .case-head h3{margin:0!important;flex:1}.dg14 .case-head button{flex-shrink:0;padding:8px 12px!important;font-size:12px!important}
 .dg14 .case-copy-status{font-size:12px;color:#315783;margin:6px 0;min-height:0}.dg14 .manual-copy{display:block;width:100%;min-height:150px;margin:12px 0;font:13px/1.5 monospace}
 @media(max-width:600px){.dg14 .case-head{flex-direction:column;gap:8px}}
+.dg14 .wallet-settings{margin-top:18px;padding-top:18px;border-top:1px solid var(--border)}
+.dg14 .field-hint{font-size:12px;color:var(--muted);margin:10px 0 0}.dg14 .grid{align-items:start}
 </style><div class="dg14" data-generator="v18">
 <header class="hero"><div><div class="eyebrow">PAYMENTS · QA</div><h1>Проверки депозитов у агрегатора</h1></div><nav class="languages" aria-label="Language"><button type="button" data-lang="ru">RU</button><button type="button" data-lang="en">EN</button><button type="button" data-lang="uk">UKR</button></nav></header>
 
@@ -34,8 +36,16 @@
 <label>Тип интеграции<span class="select-wrap"><select data-id="integration"><option>HPP</option><option>H2H</option></select></span></label>
 <label>Лицензия<span class="select-wrap"><select data-id="license"><option value="pinco">PINCO / WL</option><option value="com">COM</option><option value="zazino">Zazino</option></select></span></label>
 <label>Регион<span class="select-wrap"><select data-id="region"><option value="TR">Turkey</option><option value="AZ">Azerbaijan</option><option value="CL">Chile</option><option value="CA">Canada</option><option value="GT">Guatemala</option><option value="KZ">Kazakhstan</option><option value="BO">Bolivia</option><option value="UZ">Uzbekistan</option><option value="IN">India</option><option value="KG">Kyrgyzstan</option><option value="BD">Bangladesh</option><option value="MX">Mexico</option><option value="EC">Ecuador</option><option value="HN">Honduras</option><option value="TJ">Tajikistan</option><option value="NG">Nigeria</option><option value="KE">Kenya</option><option value="CG">Congo</option><option value="RU">Russia</option></select></span></label>
+<label>Способ оплаты<span class="select-wrap"><select data-id="wallet"><option value="standard">Обычный метод</option><option value="apple">Apple Pay</option><option value="google">Google Pay</option></select></span></label>
 <label>Изменение суммы при оплате<span class="select-wrap"><select data-id="amountChange"><option value="yes">Доступно</option><option value="no">Недоступно</option></select></span></label>
-
+</div>
+<div data-id="walletSettings" class="hidden wallet-settings">
+<div class="grid">
+<label data-id="cardNetworkWrap">Карты для проверки<span class="select-wrap"><select data-id="cardNetwork"><option value="visa">Visa</option><option value="mastercard">Mastercard</option><option value="both">Visa и Mastercard</option></select></span></label>
+<label data-id="googleMethodModeWrap" class="hidden">Количество методов<span class="select-wrap"><select data-id="googleMethodMode"><option value="separate">Два метода</option><option value="shared">Один метод</option></select></span></label>
+</div>
+<p data-id="googleMethodHint" class="field-hint hidden">Google Pay: основной метод — браузеры и WebView, второй — нативное приложение.</p>
+<p class="field-hint">При выборе обеих карт: один кейс с Visa, остальные с Mastercard.</p>
 </div>
 <div data-id="regionInfo" class="note"></div>
 </div>
@@ -45,6 +55,7 @@
 <div class="grid">
 <label>Site URL<input data-id="site" placeholder="SITE_URL"></label>
 <label>Payment method<input data-id="method" placeholder="PAYMENT_METHOD"></label>
+<label data-id="nativeMethodWrap" class="hidden">Метод Google Pay для нативного приложения<input data-id="nativeMethod" placeholder="NATIVE_PAYMENT_METHOD"></label>
 <label>Account ID<input data-id="account" placeholder="ACCOUNT_ID"></label>
 <label>Login<input data-id="login" placeholder="LOGIN"></label>
 <label>Password<input type="password" autocomplete="off" data-id="password" placeholder="PASSWORD"></label>
@@ -122,6 +133,12 @@ const extraTranslations={
  'проверка кнопки возврата в кассу':['return-to-cashier button check','перевірка кнопки повернення до каси'],
  'Не выполнять оплату. Вернуться из платёжного приложения к исходной платёжной форме на тестируемой платформе и убедиться, что заявка доступна.':['Do not pay. Return from the payment app to the original payment form on the platform under test and verify that the request is available.','Не виконувати оплату. Повернутися з платіжного застосунку до початкової платіжної форми на тестованій платформі та переконатися, що заявка доступна.']
 };
+Object.assign(extraTranslations,{"Способ оплаты": ["Payment type", "Спосіб оплати"], "Обычный метод": ["Standard method", "Звичайний метод"], "Карты для проверки": ["Cards to test", "Картки для перевірки"], "Visa и Mastercard": ["Visa and Mastercard", "Visa та Mastercard"], "Методы Google Pay": ["Google Pay methods", "Методи Google Pay"], "Один метод для всех платформ": ["One method for all platforms", "Один метод для всіх платформ"], "Отдельный метод для нативного приложения": ["Separate method for the native app", "Окремий метод для нативного застосунку"], "Метод Google Pay для нативного приложения": ["Google Pay method for the native app", "Метод Google Pay для нативного застосунку"], "Открыть платёжное окно ": ["Open the payment sheet for ", "Відкрити платіжне вікно "], "Выбрать карту ": ["Select a card: ", "Вибрати картку "], " в кошельке.": [" in the wallet.", " у гаманці."], "На тестовом устройстве настроен ": ["The test device is set up with ", "На тестовому пристрої налаштовано "], " и добавлена карта ": [" and has a card added: ", " і додано картку "], "Подтвердить оплату в кошельке. Убедиться, что результат оплаты отображается на исходной платформе.": ["Confirm payment in the wallet. Verify that the payment result is displayed on the original platform.", "Підтвердити оплату в гаманці. Переконатися, що результат оплати відображається на початковій платформі."], "Не подтверждать оплату в кошельке.": ["Do not confirm payment in the wallet.", "Не підтверджувати оплату в гаманці."], "Дождаться окончания таймера заявки.": ["Wait for the request timer to expire.", "Дочекатися завершення таймера заявки."], "Вернуться к заявке и отменить её кнопкой отмены.": ["Return to the request and cancel it using the cancel button.", "Повернутися до заявки та скасувати її кнопкою скасування."], "Попробовать подтвердить оплату исходной заявки в кошельке после отмены или окончания таймера. Не создавать новую заявку. Если оплата недоступна, зафиксировать причину и проверить отсутствие списания; оставшиеся шаги оплаты не выполнять.": ["Try to confirm payment for the original request in the wallet after cancellation or expiry. Do not create a new request. If payment is unavailable, record the reason and verify that no debit occurred; do not execute the remaining payment steps.", "Спробувати підтвердити оплату початкової заявки в гаманці після скасування або завершення таймера. Не створювати нову заявку. Якщо оплата недоступна, зафіксувати причину та перевірити відсутність списання; решту кроків оплати не виконувати."]});
+Object.assign(extraTranslations,{
+ 'Методы для разных платформ':['Methods for different platforms','Методи для різних платформ'],
+ 'Актуально для Google Pay: основной метод — браузеры и WebView, отдельный — нативное приложение.':['Applies to Google Pay: the main method is for browsers and WebView; a separate method is for the native app.','Актуально для Google Pay: основний метод — браузери та WebView, окремий — нативний застосунок.']
+});
+Object.assign(extraTranslations,{"Количество методов": ["Number of methods", "Кількість методів"], "Два метода": ["Two methods", "Два методи"], "Один метод": ["One method", "Один метод"], "Google Pay: основной метод — браузеры и WebView, второй — нативное приложение.": ["Google Pay: the main method is for browsers and WebView; the second is for the native app.", "Google Pay: основний метод — браузери та WebView, другий — нативний застосунок."], "При выборе обеих карт: один кейс с Visa, остальные с Mastercard.": ["When both cards are selected: one case with Visa, the rest with Mastercard.", "Якщо обрано обидві картки: один кейс із Visa, решта з Mastercard."], "Пользователь не авторизован в аккаунте Google в тестируемом браузере. Авторизация на сайте выполняется отдельно.": ["The user is signed out of Google in the browser under test. Site login is performed separately.", "Користувач не авторизований в акаунті Google у тестованому браузері. Авторизація на сайті виконується окремо."], "Пользователь авторизован в аккаунте Google, используемом для Google Pay.": ["The user is signed in to the Google account used for Google Pay.", "Користувач авторизований в акаунті Google, який використовується для Google Pay."], "без авторизации в Google": ["signed out of Google", "без авторизації в Google"], "Проверить предложение войти в аккаунт Google. Выполнить вход в тестовый Google-аккаунт и продолжить оплату выбранной картой. Если продолжение недоступно, зафиксировать результат и не выполнять оставшиеся шаги оплаты.": ["Verify the Google sign-in prompt. Sign in to the test Google account and continue payment with the selected card. If continuing is unavailable, record the result and do not execute the remaining payment steps.", "Перевірити пропозицію увійти до акаунта Google. Увійти до тестового Google-акаунта та продовжити оплату обраною карткою. Якщо продовження недоступне, зафіксувати результат і не виконувати решту кроків оплати."]});
 Object.assign(translations,extraTranslations);
 const extraPhrasePattern=Object.keys(extraTranslations).sort((a,b)=>b.length-a.length).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
 const phraseKeys=Object.keys(translations).filter(k=>k.length>2).sort((a,b)=>b.length-a.length);
@@ -140,7 +157,7 @@ const $=id=>root.querySelector('[data-id="'+id+'"]');
 const val=(id,fallback)=>{const el=$(id); const x=el&&el.value.trim(); if(protectValues&&x){const token='⟦VALUE'+protectedValues.length+'⟧';protectedValues.push(x);return token;}return x||fallback;};
 const checked=id=>!!($(id)&&$(id).checked);
 
-const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true},zazino:{native:false,pwa:true,webview:false}};
+const LICENSE_CAPABILITIES={com:{native:true,webview:true},pinco:{native:true,webview:true},zazino:{native:true,pwa:true,webview:false}};
 function licenseApps(){return LICENSE_CAPABILITIES[$('license').value]||{native:false,webview:false};}
 const LICENSE_DEFAULT_SITES={
   pinco:'https://pinco.win/',
@@ -149,7 +166,15 @@ const LICENSE_DEFAULT_SITES={
 };
 function defaultSite(){return LICENSE_DEFAULT_SITES[$('license').value]||'SITE_URL';}
 function currentRegion(){return REGIONS[$('region').value];}
+function isDesktop(platform){return platform.startsWith('Desktop')||platform.startsWith('macOS');}
+function walletName(){return $('wallet').value==='apple'?'Apple Pay':$('wallet').value==='google'?'Google Pay':'';}
+function paymentMethod(platform){
+ return $('wallet').value==='google'&&$('googleMethodMode').value==='separate'&&platform==='Нативное приложение'
+  ?val('nativeMethod','NATIVE_PAYMENT_METHOD'):val('method','PAYMENT_METHOD');
+}
 function platformList(r){
+  if($('wallet').value==='apple')return ['iOS Safari','macOS Safari'];
+  if($('wallet').value==='google')return ['Desktop Chrome','Android Chrome','Нативное приложение','WebView'];
   const p=[];
   r.android.forEach(b=>p.push('Android '+b));
   r.ios.forEach(b=>p.push('iOS '+b));
@@ -157,12 +182,20 @@ function platformList(r){
   return p;
 }
 function updateUI(){
+  const wallet=walletName(),google=$('wallet').value==='google';
+  $('cardNetworkWrap').classList.toggle('hidden',!wallet);
+  $('walletSettings').classList.toggle('hidden',!wallet);
+  $('googleMethodModeWrap').classList.toggle('hidden',!google);
+  $('googleMethodHint').classList.toggle('hidden',!google);
+  $('googleMethodMode').disabled=!google;
+  $('nativeMethodWrap').classList.toggle('hidden',!google||$('googleMethodMode').value!=='separate');
   $('returnToCashierWrap').classList.toggle('hidden',$('integration').value!=='HPP');
   $('returnToCashier').disabled=$('integration').value!=='HPP';
   const r=currentRegion();
   $('regionInfo').innerHTML='Валюта: <b>'+r.currency+'</b><br>Android: '+r.android.join(', ')+'<br>iOS: '+r.ios.join(', ')+'<br>Desktop: '+r.desktop.join(', ');
   $('qrSettings').classList.toggle('hidden',!checked('qr'));
   const apps=licenseApps();const names=[];if(apps.webview)names.push('WebView');if(apps.native)names.push('Нативное приложение');if(apps.pwa)names.push('PWA приложение');if(names.length)$('regionInfo').innerHTML+='<br>Дополнительные платформы: '+names.join(', ');
+  if(wallet)$('regionInfo').innerHTML='Валюта: <b>'+r.currency+'</b><br>'+wallet+': '+platformList(r).join(', ');
   const com=$('license').value==='com';
   $('comBox').classList.toggle('hidden',!com);
   $('usdOverWrap').classList.toggle('hidden',$('amountChange').value!=='yes'||false);
@@ -184,7 +217,7 @@ function header(platform, amount, currency, usd){
     'login: '+val(usd?'usdLogin':'login',usd?'USD_LOGIN':'LOGIN'),
     'Password: '+val(usd?'usdPassword':'password',usd?'USD_PASSWORD':'PASSWORD'),
     'Account currency: '+currency,
-    'Payment method: '+val('method','PAYMENT_METHOD'),
+    'Payment method: '+paymentMethod(platform),
     'Sum: '+amount+' '+currency
   ];
 }
@@ -195,7 +228,7 @@ function baseSteps(platform,usd=false,checkCashierReturn=false){
  else if(platform==='WebView')s.push('Установить и открыть WebView-приложение из APK-файла, предоставленного вместе с запросом на тестирование.');
  else s.push('Открыть '+val('site',defaultSite())+' в '+platform+'.');
  s.push(usd?'Авторизоваться указанным отдельным пользователем с валютой аккаунта USD.':'Авторизоваться указанным тестовым пользователем.');
- s.push('Открыть кассу, выбрать вкладку «Пополнить» и метод '+val('method','PAYMENT_METHOD')+'.','Ввести указанную сумму заявки и нажать «Пополнить».');
+ s.push('Открыть кассу, выбрать вкладку «Пополнить» и метод '+paymentMethod(platform)+'.','Ввести указанную сумму заявки и нажать «Пополнить».');
  s.push($('integration').value==='HPP'?'Дождаться открытия платёжной страницы провайдера.':'Дождаться платёжных данных в нашей кассе.');
  if(checkCashierReturn)s.push(
   'Нажать кнопку «Вернуться в кассу».',
@@ -205,39 +238,56 @@ function baseSteps(platform,usd=false,checkCashierReturn=false){
  return s;
 }
 function generateCases(){
+ const wallet=walletName();
+ return generateWalletCases(wallet);
+}
+function generateWalletCases(wallet){
  $('message').textContent='';
  const r=currentRegion(),full=true,change=$('amountChange').value==='yes',com=$('license').value==='com',qr=checked('qr'),receipt=checked('receipt');
  const cases=[],used=new Set(),cashierReturnPlatforms=new Set(),browsers=platformList(r),amount=val('amount','AMOUNT');
  const scanners=$('qrScanner').value==='both'?['camera','app']:[$('qrScanner').value];let scanIndex=0;
- function pay(s,platform,paid,currency){
-  if(qr&&platform.startsWith('Desktop')){
+ function pay(s,platform,paid,currency,card){
+  if(wallet&&!qr&&!checked('oneClick')){
+   s.push('Открыть платёжное окно '+wallet+'.','Выбрать карту '+card+' в кошельке.',
+    'Проверить платёжные данные и выполнить оплату на сумму '+paid+' '+currency+'.',
+    'Подтвердить оплату в кошельке. Убедиться, что результат оплаты отображается на исходной платформе.');
+   return;
+  }
+  if(qr&&isDesktop(platform)){
    const scanner=scanners[scanIndex++%scanners.length];
    s.push('Оставить QR-код открытым на экране компьютера.');
    s.push(scanner==='camera'?'Отсканировать QR-код обычной камерой телефона и открыть распознанную ссылку.':'Открыть платёжное приложение на телефоне и отсканировать QR-код встроенной камерой приложения.');
   }else if(qr&&$('qrMobile').value==='download'){
    s.push('Скачать QR-код на мобильное устройство.','Открыть платёжное приложение и загрузить сохранённое изображение QR для распознавания.');
-  }else if(!platform.startsWith('Desktop')&&(qr||checked('oneClick'))){
+  }else if(!isDesktop(platform)&&(qr||checked('oneClick'))){
    s.push('Нажать кнопку перехода в платёжное приложение.','Убедиться, что именно по кнопке открылось нужное платёжное приложение.');
-  }else s.push('Скопировать необходимые платёжные реквизиты и использовать их для перевода.');
+  }else if(!wallet)s.push('Скопировать необходимые платёжные реквизиты и использовать их для перевода.');
+  if(wallet)s.push('Открыть платёжное окно '+wallet+'.','Выбрать карту '+card+' в кошельке.');
   s.push('Проверить платёжные данные и выполнить оплату на сумму '+paid+' '+currency+'.');
+  if(wallet)s.push('Подтвердить оплату в кошельке. Убедиться, что результат оплаты отображается на исходной платформе.');
  }
  function add(platform,kind,usd=false){
+  const card=!wallet?'':$('cardNetwork').value==='both'?(cases.length===0?'Visa':'Mastercard'):$('cardNetwork').value==='visa'?'Visa':'Mastercard';
   const sum=kind==='over'?(usd?val('usdOverRequest','USD_OVER_REQUEST_AMOUNT'):val('overRequest','OVER_REQUEST_AMOUNT')):kind==='under'?(usd?val('usdUnderRequest','USD_UNDER_REQUEST_AMOUNT'):val('underRequest','UNDER_REQUEST_AMOUNT')):usd?val('usdAmount','USD_AMOUNT'):amount,currency=usd?'USD':r.currency;
   let paid=sum;if(kind==='over')paid=usd?val('usdOverPaid','USD_OVERPAY_ACTUAL_AMOUNT'):val('overPaid','OVERPAY_ACTUAL_AMOUNT');if(kind==='under')paid=usd?val('usdUnderPaid','USD_UNDERPAY_ACTUAL_AMOUNT'):val('underPaid','UNDERPAY_ACTUAL_AMOUNT');
   const checkCashierReturn=$('integration').value==='HPP'&&checked('returnToCashier')&&!cashierReturnPlatforms.has(platform);
-  const s=baseSteps(platform,usd,checkCashierReturn);let pre='';
+  const s=baseSteps(platform,usd,checkCashierReturn);let pre=wallet?'На тестовом устройстве настроен '+wallet+' и добавлена карта '+card+'.' :'';
   if(checkCashierReturn)cashierReturnPlatforms.add(platform);
-  if(!platform.startsWith('Desktop')&&(qr&&$('qrMobile').value==='button'||checked('oneClick'))&&(kind==='expiry'||kind==='before'||qr&&$('qrMobile').value==='download'))s.push(
+  if(!isDesktop(platform)&&(qr&&$('qrMobile').value==='button'||checked('oneClick'))&&(kind==='expiry'||kind==='before'||qr&&$('qrMobile').value==='download'))s.push(
    'Нажать кнопку перехода в платёжное приложение.',
    'Убедиться, что именно по кнопке открылось нужное платёжное приложение.',
    'Не выполнять оплату. Вернуться из платёжного приложения к исходной платёжной форме на тестируемой платформе и убедиться, что заявка доступна.'
   );
-  if(kind==='expiry'||kind==='before'){
-   pre='Сохранить платёжные данные ДО '+(kind==='expiry'?'окончания таймера':'отмены заявки')+'.';
-   s.push('До '+(kind==='expiry'?'окончания таймера':'отмены заявки')+' сохранить реквизиты'+(qr?' и QR-код':checked('oneClick')&&!platform.startsWith('Desktop')?' и платёжную ссылку':'')+' для последующей оплаты.');
+  if(wallet&&!qr&&!checked('oneClick')&&(kind==='expiry'||kind==='before')){
+   s.push('Открыть платёжное окно '+wallet+'.','Выбрать карту '+card+' в кошельке.','Не подтверждать оплату в кошельке.',
+    kind==='expiry'?'Дождаться окончания таймера заявки.':'Вернуться к заявке и отменить её кнопкой отмены.',
+    'Попробовать подтвердить оплату исходной заявки в кошельке после отмены или окончания таймера. Не создавать новую заявку. Если оплата недоступна, зафиксировать причину и проверить отсутствие списания; оставшиеся шаги оплаты не выполнять.');
+  }else if(kind==='expiry'||kind==='before'){
+   pre+=(pre?' ':'')+'Сохранить платёжные данные ДО '+(kind==='expiry'?'окончания таймера':'отмены заявки')+'.';
+   s.push('До '+(kind==='expiry'?'окончания таймера':'отмены заявки')+' сохранить реквизиты'+(qr?' и QR-код':checked('oneClick')&&!isDesktop(platform)?' и платёжную ссылку':'')+' для последующей оплаты.');
    s.push(kind==='expiry'?'Не оплачивать заявку до окончания таймера. Дождаться его завершения и показать состояние страницы.':'Отменить заявку кнопкой отмены и подтвердить отмену, если требуется.');
    s.push('После '+(kind==='expiry'?'окончания таймера':'отмены')+' выполнить оплату на сумму '+paid+' '+currency+' по заранее сохранённым платёжным данным. Если оплата недоступна, зафиксировать причину.');
-  }else pay(s,platform,paid,currency);
+  }else pay(s,platform,paid,currency,card);
   if(kind==='over'||kind==='under')s.push('Фактическая сумма должна быть '+(kind==='over'?'больше':'меньше')+' суммы заявки.');
   const h2h=$('integration').value==='H2H';
   const special=['after','before','expiry'].includes(kind);
@@ -257,30 +307,39 @@ function generateCases(){
   const paymentFeatures=features.map(feature=>(qr&&feature===paymentTitleFeatures[3]?'QR: ':'')+feature[1]);
   if(qr&&(kind==='expiry'||kind==='before'))paymentFeatures.push('QR: оплата по сохранённым платёжным данным');
   const paymentFeature=paymentFeatures.join(' + ');
-  cases.push({title:platform+' — '+(usd?'USD + ':'')+titles[kind]+(paymentFeature?' + '+paymentFeature:''),platform,sum,currency,usd,steps:s,pre,receiptIndex,kind});used.add(platform);
+  cases.push({title:(wallet?wallet+' / '+card+' — ':'')+platform+' — '+(usd?'USD + ':'')+titles[kind]+(paymentFeature?' + '+paymentFeature:''),platform,sum,currency,usd,steps:s,pre,receiptIndex,kind,card});used.add(platform);
  }
+ if(wallet){
+  browsers.forEach(p=>add(p,'regular'));
+  if(change){add(browsers[0],'over',com);add(browsers[1],'under');}
+  else if(com)add(browsers[0],'regular',true);
+  if(checked('timer'))add(browsers[0],'expiry');
+  if(checked('cancel')){add(browsers[0],'before');add(browsers[1],'after');}
+ }else{
  add(browsers[0],'regular');
  const apps=licenseApps();
  const appPlatform=apps.pwa?'PWA приложение':apps.native?'Нативное приложение':null;
  if(change)add(appPlatform||browsers[0],full?'over':'under',com);else if(com)add(appPlatform||browsers[0],'regular',true);
  if(full){
   if(appPlatform&&!used.has(appPlatform))add(appPlatform,'regular');
+  if(apps.native&&!used.has('Нативное приложение'))add('Нативное приложение','regular');
   if(apps.webview)add('WebView',change?'under':'regular');else if(change)add(browsers[0],'under');
   const scenarios=[];if(checked('timer'))scenarios.push('expiry');if(checked('cancel'))scenarios.push('before','after');
   scenarios.forEach(kind=>{
    // Reserve desktop QR coverage for an ordinary payment to exercise scanning.
-   const candidates=browsers.filter(p=>!qr||!p.startsWith('Desktop'));
+   const candidates=browsers.filter(p=>!qr||!isDesktop(p));
    add(candidates.find(p=>!used.has(p))||candidates[0],kind);
   });
   browsers.forEach(p=>{if(!used.has(p))add(p,'regular');});
  }
- if(qr){const desktop='Desktop '+r.desktop[0];while(scanIndex<scanners.length)add(desktop,'regular');}
+ }
+ if(qr){const desktop=wallet?browsers.find(isDesktop):'Desktop '+r.desktop[0];while(scanIndex<scanners.length)add(desktop,'regular');}
  if(receipt){
   let eligible=cases.filter(c=>['regular','over','under'].includes(c.kind));
-  while(eligible.length<3){add('Desktop '+r.desktop[0],'regular');eligible=cases.filter(c=>['regular','over','under'].includes(c.kind));}
+  while(eligible.length<3){add(wallet?browsers[browsers.length-1]:'Desktop '+r.desktop[0],'regular');eligible=cases.filter(c=>['regular','over','under'].includes(c.kind));}
   // Keep underpayment with a valid receipt; assign the no-receipt flow elsewhere.
   const without=eligible.find(c=>c.kind==='over')||eligible.find(c=>c.kind==='regular');
-  const invalid=eligible.find(c=>c!==without&&c.kind==='regular'&&c.platform.startsWith('Desktop')&&!c.usd)
+  const invalid=eligible.find(c=>c!==without&&c.kind==='regular'&&isDesktop(c.platform)&&!c.usd)
     ||eligible.find(c=>c!==without&&c.kind==='regular'&&!c.usd)
     ||eligible.find(c=>c!==without&&c.kind!=='under');
   eligible.forEach(c=>{
@@ -301,6 +360,18 @@ function generateCases(){
    }
   });
  }
+ if(wallet==='Google Pay'){
+  // Cover signed-out Google state once on desktop; site login is independent.
+  const signedOut=cases.find(c=>c.platform==='Desktop Chrome'&&c.kind==='regular');
+  cases.forEach(c=>{
+   if(c===signedOut){
+    c.pre+=' Пользователь не авторизован в аккаунте Google в тестируемом браузере. Авторизация на сайте выполняется отдельно.';
+    c.title+=' + без авторизации в Google';
+    const index=c.steps.findIndex(step=>step==='Открыть платёжное окно Google Pay.');
+    c.steps.splice(index+1,0,'Проверить предложение войти в аккаунт Google. Выполнить вход в тестовый Google-аккаунт и продолжить оплату выбранной картой. Если продолжение недоступно, зафиксировать результат и не выполнять оставшиеся шаги оплаты.');
+   }else c.pre+=' Пользователь авторизован в аккаунте Google, используемом для Google Pay.';
+  });
+ }
  cases.filter(c=>c.kind==='over'||c.kind==='under').forEach(c=>{
   const dispute=['Только после реальной оплаты создать диспут по этой заявке. Если оплата не состоялась, диспут и callback по этому сценарию не инициировать.',
    'После создания диспута отправить нам callback с фактически оплаченной суммой: '+(c.kind==='under'?(c.usd?val('usdUnderPaid','USD_UNDERPAY_ACTUAL_AMOUNT'):val('underPaid','UNDERPAY_ACTUAL_AMOUNT')):c.usd?val('usdOverPaid','USD_OVERPAY_ACTUAL_AMOUNT'):val('overPaid','OVERPAY_ACTUAL_AMOUNT'))+' '+c.currency+'.'];
@@ -314,7 +385,7 @@ function generateCases(){
    return returnsToCashier&&!alreadyChecked?[step,'Убедиться, что касса открыта и пользователю отображается pending popup.']: [step];
   });
  });
- return cases.map(c=>({title:c.title,text:header(c.platform,c.sum,c.currency,c.usd).join('\n')+(c.pre?'\n\nПредусловие: '+c.pre:'')+'\n\n'+c.steps.map((x,i)=>'Шаг '+(i+1)+' — '+x).join('\n')+'\n\nПросьба записать видео полного флоу от шага 1 до шага '+c.steps.length+'.'+(qr&&c.platform.startsWith('Desktop')?' Просим включить в видеозапись экран мобильного телефона: момент сканирования QR-кода и весь последующий процесс оплаты.':'')}));
+ return cases.map(c=>({title:c.title,text:header(c.platform,c.sum,c.currency,c.usd).concat(wallet?['Wallet: '+wallet,'Card: '+c.card]:[]).join('\n')+(c.pre?'\n\nПредусловие: '+c.pre:'')+'\n\n'+c.steps.map((x,i)=>'Шаг '+(i+1)+' — '+x).join('\n')+'\n\nПросьба записать видео полного флоу от шага 1 до шага '+c.steps.length+'.'+(qr&&isDesktop(c.platform)?' Просим включить в видеозапись экран мобильного телефона: момент сканирования QR-кода и весь последующий процесс оплаты.':'')}));
 }
 function readCase(d){
  return {title:d.querySelector('h3').textContent,text:d.querySelector('pre').textContent,comment:d.querySelector('.case-comment').value.trim()};
