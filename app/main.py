@@ -5,7 +5,9 @@ from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
+from app.mentions import load_region_mentions, normalize_mentions, format_mentions
 
 from app.slack_client import post_message
 from app.slack_oauth import build_authorize_url, exchange_code
@@ -26,11 +28,15 @@ class GeneratedCase(BaseModel):
     title: str
     text: str
     comment: str = ""
+    request_text: Optional[str] = Field(default=None, max_length=2000)
 
 
 class SendCasesRequest(BaseModel):
     region: str
     cases: list[GeneratedCase]
+    mention_users: Optional[list[str]] = Field(default=None, max_length=100)
+    operation: Literal["deposit", "payout"] = "deposit"
+    request_text: Optional[str] = Field(default=None, max_length=2000)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -51,6 +57,14 @@ async def home() -> str:
 @app.get("/generator")
 async def generator() -> FileResponse:
     return FileResponse(BASE_DIR / "static" / "generator.html", media_type="text/html")
+
+
+@app.get("/api/region-mentions")
+async def region_mentions() -> dict:
+    try:
+        return load_region_mentions()
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Could not load region mentions") from exc
 
 
 @app.get("/slack/oauth/start")
@@ -106,18 +120,30 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
         raise HTTPException(status_code=400, detail="No generated cases")
 
     try:
-        channel_id, user_ids = get_slack_route(payload.region)
+        channel_id, _ = get_slack_route(payload.region)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    mentions = " ".join(f"<@{user_id}>" for user_id in user_ids)
-    greeting = f"{mentions} Привет! Просьба провести тест депозита".strip()
+    try:
+        selected = payload.mention_users
+        if selected is None:
+            selected = load_region_mentions().get(payload.region, [])
+        user_ids = normalize_mentions(selected)
+        mentions = format_mentions(user_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Could not load region mentions") from exc
+    operation = "выплаты" if payload.operation == "payout" else "депозита"
+    request_text = payload.request_text.strip() if payload.request_text is not None else f"Просьба провести тест {operation}."
 
     sent = 0
     thread_ts_values: list[str] = []
 
     for case in payload.cases:
-        parent = await post_message(user_token, channel_id, greeting)
+        case_request = case.request_text.strip() if case.request_text is not None else "\n".join(part for part in [request_text, case.title] if part)
+        parent_text = " ".join(part for part in [mentions, case_request] if part)
+        parent = await post_message(user_token, channel_id, parent_text or case.title)
         thread_ts = parent.get("ts")
         if not thread_ts:
             raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
