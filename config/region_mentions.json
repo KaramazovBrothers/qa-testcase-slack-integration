@@ -1,0 +1,78 @@
+{
+  "TR": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "AZ": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "CL": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "CA": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "GT": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "KZ": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "BO": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "UZ": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "IN": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "KG": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "BD": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "MX": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "EC": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "HN": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "TJ": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "NG": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "KE": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "CG": [
+    "@testuser1",
+    "@testuser2"
+  ],
+  "RU": [
+    "@testuser1",
+    "@testuser2"
+  ]
+}
