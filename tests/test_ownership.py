@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -114,24 +115,26 @@ class OwnershipMigrationTests(unittest.TestCase):
     def test_migration_preserves_ids_data_history_and_backup(self):
         with sqlite3.connect(self.path) as db:
             original={name:db.execute(f'SELECT * FROM {name}').fetchall() for name in ['tasks','case_sets','test_cases','slack_sends','slack_send_cases']}
+            columns={name:','.join(r[1] for r in db.execute(f'PRAGMA table_info({name})')) for name in original}
         storage.initialize()
         with storage.connection() as db:
             self.assertEqual(dict(db.execute('SELECT * FROM tasks').fetchone())['owner_user_id'],1)
             self.assertEqual(db.execute('SELECT id FROM tasks').fetchone()[0],42)
             self.assertEqual(db.execute('SELECT owner_user_id FROM slack_sends').fetchone()[0],1)
-            self.assertEqual(db.execute('SELECT jira_id,title,created_at,updated_at,settings FROM tasks').fetchone()[:],original['tasks'][0][1:])
+            self.assertEqual(db.execute('SELECT jira_id,title,created_at,updated_at FROM tasks').fetchone()[:],original['tasks'][0][1:5])
+            self.assertEqual(json.loads(db.execute('SELECT settings FROM tasks').fetchone()[0]),json.loads(original['tasks'][0][5]))
             for name in ('case_sets','test_cases','slack_send_cases'):
-                self.assertEqual([tuple(r) for r in db.execute(f'SELECT * FROM {name}')],original[name])
+                self.assertEqual([tuple(r) for r in db.execute(f'SELECT {columns[name]} FROM {name}')],original[name])
             self.assertEqual(tuple(db.execute('SELECT id,channel,ts,sent_at,permalink,permalink_error,permalink_checked_at FROM slack_sends').fetchone()),original['slack_sends'][0])
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],1)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],4)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
-        backups=list((self.path.parent/'backups').glob('*.db'));self.assertEqual(len(backups),1)
+        backups=list((self.path.parent/'backups').glob('*.pre-users.*.db'));self.assertEqual(len(backups),1)
         self.assertEqual(backups[0].stat().st_mode&0o777,0o600)
         with sqlite3.connect(backups[0]) as backup:
             for name in original:self.assertEqual(backup.execute(f'SELECT * FROM {name}').fetchall(),original[name])
             self.assertNotIn('owner_user_id',[r[1] for r in backup.execute('PRAGMA table_info(tasks)')])
         storage.initialize()
-        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),1)
+        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),4)
 
     def test_failed_integrity_check_rolls_back_upgrade(self):
         with sqlite3.connect(self.path) as db:

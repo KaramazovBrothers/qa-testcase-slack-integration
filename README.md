@@ -16,22 +16,27 @@ Open **http://127.0.0.1:8000/app**. The existing standalone generator remains at
 `/generator`. No frontend build, Node.js, React or external database is needed.
 If port 8000 is already occupied by the old backend, stop that process first.
 
-1. Create a task with its Jira ID and title, or search/select an existing task.
-2. Expand the generator, enter its parameters and save settings for the task.
-3. Generate and edit cases using the existing generator. Click **Сохранить новый
-   набор** below it. This saves a new independent set and the task settings; older
-   sets are kept. Generation by itself is a preview and does not write a set.
-4. Choose a saved set from history. Status, QA comments, bug URLs and case edits
-   save when leaving a field; the save button also saves immediately. Errors stay
-   visible and unsaved edits are retained. Counts show all cases in the selected
-   set, including those hidden by a status filter.
-5. **Взять настройки набора** copies that set's settings into the generator;
-   save them explicitly or create a new set. Switching tasks clears the preview
-   and restores the selected task's own settings.
-6. Connect the corporate Slack App using **Подключить Slack**. The current saved
-   set is sent using its saved region, operation and mentions and its current
-   edited text. QA comments/bug links remain local; additional Slack instructions
-   retain their existing meaning. Sending is an explicit button action.
+1. Start a draft or select a saved task. Jira ID and title are optional. If either
+   is missing, Save assigns “Без названия N” with no Jira ID.
+2. Fill the existing generator and generate cases. **Сохранить** is the single
+   save action for task metadata, settings, test accounts and the current cases.
+   Saving before generation stores settings only. Repeated saves update the same
+   cases; regeneration replaces the contents of the same set when saved.
+3. Add/remove test accounts (account ID, login, password) in **Пользователи выбранного региона**.
+   The dropdown on each case selects an account and replaces its credential
+   headers, preserving the scenario. These accounts are distinct from application
+   users and Slack mentions. Removing an account clears its assignments but keeps
+   existing case text as a snapshot.
+4. **Редактировать кейс и текст для Slack** at the top of each card enables inline
+   editing. Statuses, comments, edits and case deletions are applied by
+   **Сохранить**. Switching away from unsaved work requires confirmation.
+5. Each task has one editable set; there is no generation-history selector.
+   A saved task has one fixed region; only that region's mention list is stored.
+   Start another draft for a different region.
+6. Connect the corporate Slack App with **Подключить Slack**, then explicitly
+   send a case or set. Sending first saves current changes and retains permalink
+   history. QA comments/bug links remain local; Slack request/additional text
+   retains its existing meaning. Failed permalink lookup never reposts messages.
 
 ### Data and access
 
@@ -63,9 +68,10 @@ Interactive schema: `http://127.0.0.1:8000/docs`.
 | GET / POST | `/api/tasks` | List (optional `?q=QA-123`) / create |
 | GET / PUT / DELETE | `/api/tasks/{task_id}` | Read / replace task metadata / delete |
 | GET / PUT | `/api/tasks/{task_id}/settings` | Read / replace generator settings |
-| GET / POST | `/api/tasks/{task_id}/sets` | List / create a new immutable-membership set |
+| GET / POST | `/api/tasks/{task_id}/sets` | List / create a new set |
 | GET | `/api/tasks/{task_id}/sets/{set_id}` | Read cases, snapshot and status counts |
-| PATCH | `/api/tasks/{task_id}/sets/{set_id}/cases/{case_id}` | Update any subset of case fields |
+| PATCH / DELETE | `/api/tasks/{task_id}/sets/{set_id}/cases/{case_id}` | Update case fields / delete case |
+| POST | `/api/tasks/save` | Atomically save task, settings, accounts and current set |
 | GET | `/api/slack-status` | Connection flag without exposing the token |
 
 Case updates support `status` (`Not tested`, `Passed`, `Failed`, `Blocked`,
@@ -132,7 +138,7 @@ Slack exclusively and verified links, pending retries, history, reload and send-
 
 ### Database ownership: ready for multiple users
 
-The schema has versioned ownership support (`PRAGMA user_version = 1`):
+The schema has versioned ownership support (`PRAGMA user_version = 4`):
 
 - `users`: internal ID, unique `(auth_provider, auth_subject)`, display name and
   creation/update times. A provider subject is a stable identity; email/display
@@ -175,3 +181,57 @@ without creating a task.
 All 27 automated tests pass, including two-user API isolation, duplicate Jira IDs
 across owners, rejected cross-owner Slack links, migration backup/data retention,
 rollback and newer-schema protection. All Slack tests use mocks.
+
+### Regional test accounts (schema version 3)
+
+The generator separates **Метод и суммы** from **Пользователь**. Main and USD
+user fields have a saved-user dropdown for the selected region. Selecting an
+account fills ID/login/password; changing credentials switches to manual entry.
+The common **Сохранить** saves new manually entered credentials even without
+cases. Identical credentials in the same region are reused, not duplicated.
+The standalone `/generator` offers **Сохранить пользователей региона** without
+creating a task. On region change, credential fields are cleared and the new
+region's catalog is loaded.
+
+`test_accounts.owner_user_id` references `users.id`; `test_accounts.region` scopes
+the catalog. Accounts can be reused across the owner's tasks in that region.
+`test_cases.test_account_id` references the account; database triggers forbid
+cross-owner and cross-region assignments. Deleting a task keeps the catalog.
+Deleting an account explicitly clears its assignments across tasks, preserving
+existing case text. Omitting accounts from Save never deletes the catalog.
+These test accounts are distinct from application login identities and Slack
+mentions. Credentials remain local in the ignored SQLite file.
+
+GET `/api/tasks/accounts?region=EC` lists the owner's regional catalog.
+POST `/api/tasks/accounts` accepts `region`, `test_accounts` and optional
+`deleted_account_ids` without creating tasks. The unified Save accepts explicit
+`deleted_account_ids` too. Manual duplicate entries resolve to existing IDs.
+
+Schema upgrades are transactional with private backups under `data/backups`.
+Version 3 creates `qa_tests.pre-region-accounts.*.db` before changing the schema.
+The user's requested reset clears the active local database once during this
+update; application startup does not clear data. Previous local backups remain.
+
+Verification: 35 Python tests plus browser coverage of split blocks, saving
+without cases, region filtering, reuse across tasks, manual entries, duplicates,
+reload and standalone saving. Generator output matches the previous version for
+162 configurations / 868 cases. Slack calls remain mocked in automated tests.
+
+### Single editable set and UI corrections (schema version 4)
+
+Each task has at most one case set, enforced by a unique database index. Both
+save APIs reuse it; editing preserves case IDs and their Slack history, while
+explicit regeneration replaces the case list on Save. During upgrade the latest
+existing set is retained, with older sets backed up in the private
+`data/backups/qa_tests.pre-single-set.*.db` before removal.
+
+Save aligns with the metadata inputs. Selecting a region before generating cases
+no longer opens a confirmation dialog. Test-account password fields are visible.
+The Jira bug-link editor is removed, and empty Slack-history containers are
+hidden; actual sent-message links and permalink retry remain available.
+Ordinary payouts are titled “выплата” and omit Commission: 0% and the commission
+precondition. Fee payouts show “Уведомление: Выплата будет с комиссией 25%”.
+
+Verified: 36 Python tests, browser checks for the listed fixes, stable case IDs
+on editing, reload and single-set regeneration. Deposit generation remains
+identical to the previous version across 108 configurations / 742 cases.

@@ -1,208 +1,52 @@
 'use strict';
-const $=id=>document.getElementById(id);
-const statuses=['Not tested','Passed','Failed','Blocked','Skipped'];
-let task=null,currentSet=null,settingsBaseline='',resultBaseline='',searchRevision=0;
-const dirtyCases=new Map();
+const $=id=>document.getElementById(id), statuses=['Not tested','Passed','Failed','Blocked','Skipped'];
+const uuid=()=>crypto.randomUUID();
+let task=null,currentSet=null,cases=null,accounts=[],draftKey=uuid(),generationKey=null,baseline='',gen,busy=false,searchRevision=0,deletedAccountIds=[];
 const frame=$('generator');
-const generatorReady=new Promise(resolve=>{
- const ready=()=>{if(frame.contentWindow.qaGenerator)resolve(frame.contentWindow.qaGenerator);};
- frame.addEventListener('load',ready);ready();
-});
+// Keep the sticky sidebar below the notice, including wrapped messages.
+const noticeObserver=new ResizeObserver(()=>document.documentElement.style.setProperty('--notice-height',`${$('notice').getBoundingClientRect().height}px`));
+noticeObserver.observe($('notice'));
+const generatorReady=new Promise(resolve=>{const ready=()=>{if(frame.contentWindow.qaGenerator)resolve(frame.contentWindow.qaGenerator);};frame.addEventListener('load',ready);ready();});
 function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);}
-async function api(path,method='GET',body){
- const response=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
- if(response.status===204)return null;
- const data=await response.json();
- if(!response.ok){const detail=data.detail;throw new Error(typeof detail==='string'?detail:JSON.stringify(detail));}
- return data;
-}
-const taskPath=()=>`/api/tasks/${task.id}`;
-const setPath=()=>`${taskPath()}/sets/${currentSet.id}`;
 function el(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
-function formValue(form){return Object.fromEntries(new FormData(form));}
-function date(value){return new Date(value).toLocaleString('ru-RU');}
-let actionQueue=Promise.resolve();
-let pendingActions=0;
-function action(fn){
- pendingActions++;
- actionQueue=actionQueue.then(fn).catch(error=>notice(error.message,true)).finally(()=>pendingActions--);
- return actionQueue;
-}
-async function listTasks(){
- const revision=++searchRevision;
- const items=await api('/api/tasks?q='+encodeURIComponent($('search').value));
- if(revision!==searchRevision)return;
- $('tasks').replaceChildren();
- for(const item of items){
-  const button=el('button',undefined,'task');button.type='button';button.dataset.id=item.id;button.setAttribute('aria-current',String(task?.id===item.id));
-  button.append(el('strong',item.jira_id),el('span',item.title));
-  button.onclick=()=>action(()=>selectTask(item.id));$('tasks').append(button);
- }
- if(!items.length)$('tasks').append(el('p','Задач не найдено.','muted'));
-}
-async function flushCases(){
- for(const [id,entry] of dirtyCases){
-  const payload=entry.read();
-  const saved=await api(entry.path,'PATCH',payload);
-  Object.assign(entry.record,saved);
-  if(JSON.stringify(entry.read())===JSON.stringify(payload)){dirtyCases.delete(id);entry.state.textContent='Сохранено · '+date(saved.updated_at);}else{await flushCases();}
- }
- renderCounts();
-}
-async function canLeave(){
- await flushCases();
- if(!task)return true;
- const gen=await generatorReady;
- const changed=JSON.stringify(gen.snapshot())!==settingsBaseline;
- const resultChanged=JSON.stringify(gen.cases())!==resultBaseline;
- return !(changed||resultChanged)||confirm('Есть несохранённые настройки или новый набор. Переключиться без их сохранения?');
-}
-async function selectTask(id,skipCheck=false){
- if(!skipCheck&&!await canLeave())return;
- const next=await api(`/api/tasks/${id}`);
- const gen=await generatorReady;await gen.ready;
- task=next;currentSet=null;dirtyCases.clear();gen.restore(task.settings);
- settingsBaseline=JSON.stringify(gen.snapshot());resultBaseline=JSON.stringify(gen.cases());
- $('empty').hidden=true;$('active').hidden=false;
- $('editTask').elements.jira_id.value=task.jira_id;$('editTask').elements.title.value=task.title;
- $('dates').textContent=`Создана ${date(task.created_at)} · Изменена ${date(task.updated_at)}`;
- $('setName').value='';$('settingsState').textContent='Настройки загружены';
- await loadSets();await listTasks();notice(`Открыта ${task.jira_id}`);
-}
-async function loadSets(preferred){
- const sets=await api(taskPath()+'/sets');$('sets').replaceChildren();
- sets.forEach(set=>{const option=el('option',`${set.name} · ${date(set.created_at)} · ${set.case_count} кейсов`);option.value=set.id;$('sets').append(option);});
- if(preferred)$('sets').value=preferred;
- if(sets.length)await loadSet(Number($('sets').value));else{currentSet=null;renderCases();}
-}
-async function loadSet(id){currentSet=await api(taskPath()+'/sets/'+id);$('statusFilter').value='';renderCases();}
-function renderCounts(){
- $('counts').replaceChildren();
- for(const status of statuses){const count=currentSet?.cases.filter(c=>c.status===status).length||0;$('counts').append(el('span',`${status}: ${count}`));}
-}
-function inputField(label,value,kind='textarea'){
- const wrapper=el('label',label);const input=el(kind);input.value=value??'';wrapper.append(input);return [wrapper,input];
-}
-function renderCases(){
- $('cases').replaceChildren();renderCounts();
- $('sendSet').disabled=!currentSet;$('restoreSettings').disabled=!currentSet;
- $('setInfo').textContent=currentSet?`Регион: ${currentSet.region} · ${currentSet.operation} · ${date(currentSet.created_at)} · Изменения кейсов сохраняются при выходе из поля.`:'Сохранённых наборов пока нет.';
- if(!currentSet)return;
- for(const record of currentSet.cases){
-  const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id;
-  const heading=el('h3',record.title);const body=el('pre',record.text);
-  const [statusLabel,status]=inputField('Статус',record.status,'select');
-  statuses.forEach(value=>status.append(el('option',value)));status.value=record.status;
-  const [qaLabel,qa]=inputField('Комментарии QA',record.qa_comment);qa.maxLength=20000;
-  const [bugsLabel,bugs]=inputField('Ссылки на Jira-баги · одна ссылка на строку',record.bug_links.join('\n'));bugs.placeholder='https://company.atlassian.net/browse/QA-123';
-  const details=el('details');details.append(el('summary','Редактировать кейс и текст для Slack'));
-  const [titleLabel,title]=inputField('Название',record.title,'input');title.maxLength=4000;
-  const [textLabel,text]=inputField('Шаги и ожидаемый результат',record.text);text.className='body';text.maxLength=100000;
-  const [requestLabel,request]=inputField('Обращение в Slack',record.request_text);request.maxLength=2000;
-  const [commentLabel,comment]=inputField('Дополнительные инструкции для Slack',record.comment);comment.maxLength=20000;
-  details.append(titleLabel,textLabel,requestLabel,commentLabel);
-  const state=el('span','Сохранено','saved');const save=el('button','Сохранить изменения','secondary');save.type='button';
-  const grid=el('div',undefined,'result-grid');const left=el('div');left.append(statusLabel,bugsLabel);grid.append(left,qaLabel);
-  const history=el('div',undefined,'slack-history');renderSlackHistory(record,history);
-  const send=el('button','Отправить кейс в Slack','secondary send-saved-case');send.type='button';send.onclick=()=>startSending([record]);
-  card.append(heading,send,history,body,grid,details,save,state);$('cases').append(card);
-  const read=()=>({title:title.value,text:text.value,request_text:record.request_text===null&&!request.value?null:request.value,comment:comment.value,status:status.value,qa_comment:qa.value,bug_links:bugs.value.split('\n').map(x=>x.trim()).filter(Boolean)});
-  const entry={read,record,state,path:`${setPath()}/cases/${record.id}`};
-  for(const input of [status,qa,bugs,title,text,request,comment]){
-   input.addEventListener('input',()=>{dirtyCases.set(record.id,entry);state.textContent='Не сохранено';});
-   input.addEventListener('change',()=>{dirtyCases.set(record.id,entry);action(async()=>{await flushCases();heading.textContent=record.title;body.textContent=record.text;card.dataset.status=record.status;notice('Изменения сохранены');});});
-  }
-  save.onclick=()=>action(async()=>{dirtyCases.set(record.id,entry);await flushCases();heading.textContent=record.title;body.textContent=record.text;card.dataset.status=record.status;notice('Изменения сохранены');});
- }
- applyFilter();
-}
+function button(text,handler,style='secondary'){const b=el('button',text,style);b.type='button';b.onclick=handler;return b;}
+function field(label,value,type='text'){const l=el('label',label),i=el(type==='textarea'?'textarea':'input');if(type!=='textarea')i.type=type;i.value=value??'';l.append(i);return [l,i];}
+const date=value=>new Date(value).toLocaleString('ru-RU');
+async function api(path,method='GET',body){const r=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
+const setPath=()=>`/api/tasks/${task.id}/sets/${currentSet.id}`;
+function payload(){return {task_id:task?.id,client_key:draftKey,jira_id:$('jiraId').value,title:$('taskTitle').value,settings:gen.snapshot(),deleted_account_ids:deletedAccountIds,set_id:currentSet?.id,generation_key:generationKey,test_accounts:accounts.map(({id,name,account_id,login,password,kind})=>({id,name,account_id,login,password,kind})),cases:cases?.map(({id,client_key,title,text,comment,request_text,status,qa_comment,bug_links,test_account_id})=>({id,client_key,title,text,comment,request_text,status,qa_comment,bug_links,test_account_id}))??null};}
+const signature=()=>gen?JSON.stringify(payload()):'';
+const dirty=()=>signature()!==baseline;
+function mark(){notice('Есть изменения · нажмите «Сохранить».');}
+function canLeave(){return !dirty()||confirm('Есть несохранённые изменения. Продолжить без сохранения?');}
+async function action(fn){if(busy)return;busy=true;$('workspace').inert=true;try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').inert=false;}}
+async function listTasks(){const revision=++searchRevision,items=await api('/api/tasks?q='+encodeURIComponent($('search').value));if(revision!==searchRevision)return;$('tasks').replaceChildren();for(const item of items){const b=button('',()=>action(()=>selectTask(item.id)),'task');b.dataset.id=item.id;b.setAttribute('aria-current',String(task?.id===item.id));if(item.jira_id)b.append(el('strong',item.jira_id));b.append(el('span',item.title));$('tasks').append(b);}}
+function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;renderCases();}
+async function listSets(){return task?await api(`/api/tasks/${task.id}/sets`):[];}
+function showTask(){ $('jiraId').value=task?.jira_id||'';$('taskTitle').value=task?.title||'';$('deleteTask').hidden=!task;$('dates').textContent=task?`Изменена ${date(task.updated_at)}`:'Черновик · ещё не сохранён';gen.lockRegion(!!task?.region);}
+async function selectTask(id){if(!canLeave())return;task=await api(`/api/tasks/${id}`);draftKey=task.client_key||uuid();accounts=task.test_accounts||[];deletedAccountIds=[];gen.restore(task.settings);gen.setAccountOptions(accounts);showTask();const items=await listSets();adoptSet(items.length?await api(`/api/tasks/${id}/sets/${items[0].id}`):null);renderAccounts();baseline=signature();await listTasks();notice(`Открыта ${task.jira_id||task.title}`);}
+async function newDraft(check=true){if(check&&!canLeave())return;task=null;accounts=[];deletedAccountIds=[];draftKey=uuid();gen.restore();accounts=await gen.loadAccounts();showTask();adoptSet(null);renderAccounts();await listSets();baseline=signature();await listTasks();notice('Черновик готов. Заполните параметры и сгенерируйте кейсы.');}
+async function saveWork(){importAccounts();const result=await api('/api/tasks/save','POST',payload());task=result.task;accounts=task.test_accounts;deletedAccountIds=[];gen.setAccountOptions(accounts);adoptSet(result.set);showTask();renderAccounts();await listSets();baseline=signature();await listTasks();notice('Сохранено: настройки, аккаунты и текущие кейсы.');}
+function applyAccount(record,account){if(!account)return;const parts=record.text.split('\n\n'),lines=parts[0].split('\n');for(const [pattern,label,value] of [[/^(AccountID|ID акаунта|ID аккаунта):/i,'AccountID',account.account_id],[/^(login|логін|Логин):/i,'login',account.login],[/^(Password|Пароль):/i,'Password',account.password]]){const index=lines.findIndex(line=>pattern.test(line));if(index>=0)lines[index]=lines[index].split(':')[0]+': '+value;else lines.push(label+': '+value);}parts[0]=lines.join('\n');record.text=parts.join('\n\n');}
+function importAccounts(){const f=gen.snapshot().fields,result={};for(const kind of ['main','usd']){if(kind==='usd'&&f.license!=='com')continue;const values=kind==='main'?[f.account,f.login,f.password]:[f.usdAccount,f.usdLogin,f.usdPassword];if(!values.some(Boolean))continue;let account=accounts.find(a=>a.account_id===values[0]&&a.login===values[1]&&a.password===values[2]);if(!account){account={id:uuid(),name:values[1]||values[0]||(kind==='main'?'Основной аккаунт':'USD аккаунт'),kind,account_id:values[0]||'',login:values[1]||'',password:values[2]||''};accounts.push(account);}result[kind]=account;}return result;}
+function generated(_,values){const defaults=importAccounts();generationKey=uuid();cases=values.map(c=>{const a=defaults[c.account_kind];const record={...c,client_key:uuid(),status:'Not tested',qa_comment:'',bug_links:[],test_account_id:a?.id||null};applyAccount(record,a);return record;});renderAccounts();renderCases();mark();}
+function renderAccounts(){ gen.setAccountOptions(accounts);$('accounts').replaceChildren();for(const account of accounts){const row=el('div',undefined,'account-row');for(const [key,label,type] of [['name','Имя','text'],['account_id','ID аккаунта','text'],['login','Логин','text'],['password','Пароль','text']]){const [l,i]=field(label,account[key],type);i.maxLength=key==='name'?200:4000;i.oninput=()=>{const previous={...account};account[key]=i.value;gen.syncAccount(previous,account);gen.setAccountOptions(accounts);for(const c of cases||[])if(c.test_account_id===account.id)applyAccount(c,account);renderCases();mark();};row.append(l);}row.append(button('Удалить юзера',()=>{if(!confirm('Удалить пользователя из общего списка региона? Назначения во всех задачах региона будут сняты; текст старых кейсов останется.'))return;deletedAccountIds.push(account.id);accounts=accounts.filter(a=>a.id!==account.id);
+const fields=gen.snapshot().fields;for(const kind of ['main','usd']){const ids=kind==='main'?['account','login','password']:['usdAccount','usdLogin','usdPassword'];if([account.account_id,account.login,account.password].every((v,i)=>fields[ids[i]]===v))gen.syncAccount(account,{account_id:'',login:'',password:''});}for(const c of cases||[])if(c.test_account_id===account.id)c.test_account_id=null;renderAccounts();renderCases();mark();},'danger'));$('accounts').append(row);}if(!accounts.length)$('accounts').append(el('p','Аккаунтов пока нет. Добавьте юзера или заполните данные в генераторе.','muted'));}
+function renderCounts(){$('counts').replaceChildren(...statuses.map(s=>el('span',`${s}: ${(cases||[]).filter(c=>c.status===s).length}`)));}
+function renderCases(){ $('cases').replaceChildren();renderCounts();$('sendSet').disabled=!cases?.length;$('setInfo').textContent=currentSet?`Сохранённый набор · ${date(currentSet.created_at)}. Изменения применяются кнопкой «Сохранить».`:'Изменения кейсов сохраняются кнопкой «Сохранить».';for(const record of cases||[]){const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id||record.client_key;const heading=el('h3',record.title),body=el('pre',record.text);heading.setAttribute('aria-label','Название кейса');body.setAttribute('aria-label','Текст кейса');const [rl,request]=field('Обращение в Slack',record.request_text,'textarea'),[cl,comment]=field('Дополнительные инструкции для Slack',record.comment,'textarea');request.readOnly=comment.readOnly=true;request.maxLength=2000;comment.maxLength=20000;
+const edit=button('Редактировать кейс и текст для Slack',()=>{const editing=edit.getAttribute('aria-pressed')!=='true';edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать кейс и текст для Slack';heading.contentEditable=body.contentEditable=editing?'plaintext-only':'false';request.readOnly=comment.readOnly=!editing;if(editing)body.focus();});edit.setAttribute('aria-pressed','false');const actions=el('div',undefined,'row');actions.append(edit,button('Удалить кейс',()=>{if(!confirm('Удалить кейс? Удаление из БД применится после «Сохранить».'))return;cases=cases.filter(c=>c!==record);renderCases();mark();},'danger'),button('Отправить в Slack',()=>send([record.client_key])));
+const label=el('label','Тестовый аккаунт'),select=el('select');select.setAttribute('aria-label','Тестовый аккаунт');const none=el('option','Без назначения');none.value='';select.append(none);for(const a of accounts){const o=el('option',`${a.name} · ${a.account_id||a.login||'без ID'}`);o.value=a.id;select.append(o);}select.value=record.test_account_id||'';select.onchange=()=>{record.test_account_id=select.value||null;applyAccount(record,accounts.find(a=>a.id===select.value));body.textContent=record.text;mark();};label.append(select);
+const statusLabel=el('label','Статус'),status=el('select');statuses.forEach(s=>status.append(el('option',s)));status.value=record.status;status.onchange=()=>{record.status=status.value;card.dataset.status=record.status;renderCounts();applyFilter();mark();};statusLabel.append(status);
+const [ql,qa]=field('Комментарии QA',record.qa_comment,'textarea');qa.maxLength=20000;
+heading.oninput=()=>{record.title=heading.innerText;mark();};body.oninput=()=>{record.text=body.innerText;mark();};request.oninput=()=>{record.request_text=request.value;mark();};comment.oninput=()=>{record.comment=comment.value;mark();};qa.oninput=()=>{record.qa_comment=qa.value;mark();};
+const history=el('div',undefined,'slack-history');renderHistory(record,history);card.append(actions,label,heading,body,rl,cl,statusLabel,ql,history);$('cases').append(card);}applyFilter();}
 function applyFilter(){for(const card of $('cases').children)card.hidden=!!$('statusFilter').value&&card.dataset.status!==$('statusFilter').value;}
-$('statusFilter').onchange=applyFilter;
-$('create').onsubmit=event=>{event.preventDefault();action(async()=>{if(!await canLeave())return;const created=await api('/api/tasks','POST',formValue(event.target));event.target.reset();$('search').value='';await selectTask(created.id,true);});};
-$('editTask').onsubmit=event=>{event.preventDefault();action(async()=>{task=await api(taskPath(),'PUT',formValue(event.target));await listTasks();notice('Задача сохранена');});};
-$('deleteTask').onclick=()=>action(async()=>{
- if(!confirm(`Удалить ${task.jira_id} и все её наборы без возможности восстановления?`))return;
- await api(taskPath(),'DELETE');task=null;currentSet=null;dirtyCases.clear();$('active').hidden=true;$('empty').hidden=false;
- (await generatorReady).restore();await listTasks();notice('Задача удалена');
-});
-$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));
-$('sets').onchange=()=>{const id=Number($('sets').value);action(async()=>{try{await flushCases();await loadSet(id);}catch(e){$('sets').value=currentSet.id;throw e;}});};
-$('saveSettings').onclick=()=>action(async()=>{
- const snapshot=(await generatorReady).snapshot();await api(taskPath()+'/settings','PUT',snapshot);settingsBaseline=JSON.stringify(snapshot);$('settingsState').textContent='Сохранено';notice('Настройки задачи сохранены');
-});
-$('saveSet').onclick=()=>action(async()=>{
- await flushCases();const gen=await generatorReady;const result=gen.result();if(!result.cases.length)throw new Error('Сначала сгенерируйте кейсы.');
- const snapshot=gen.snapshot();const saved=await api(taskPath()+'/sets','POST',{...result,settings:snapshot,name:$('setName').value.trim()||'Набор · '+new Date().toLocaleString('ru-RU')});
- settingsBaseline=JSON.stringify(snapshot);resultBaseline=JSON.stringify(result.cases);await loadSets(saved.id);notice('Новый набор и настройки сохранены. Предыдущие наборы остались в истории.');
-});
-$('restoreSettings').onclick=()=>action(async()=>{
- if(!currentSet||!await canLeave())return;
- (await generatorReady).restore(currentSet.settings);$('generatorPanel').open=true;
- notice('Настройки набора загружены в генератор. Сохраните их для задачи или создайте новый набор.');
-});
-let sending=false;
-function startSending(records){
- if(sending)return;
- sending=true;
- const selectedSetId=currentSet.id;
- const selectedTaskId=task.id;
- document.querySelectorAll('#sendSet,.send-saved-case').forEach(button=>button.disabled=true);
- action(async()=>{
-  try{
-   if(task?.id!==selectedTaskId||currentSet?.id!==selectedSetId)throw new Error('Задача изменилась. Выберите кейсы заново.');
-   await flushCases();notice('Отправка в Slack…');
-   const result=await api('/slack/send-cases','POST',{
-    region:currentSet.region,operation:currentSet.operation,mention_users:currentSet.mention_users,
-    cases:records.map(({id,title,text,comment,request_text})=>({case_ids:[id],title,text,comment,request_text}))
-   });
-   const pending=result.deliveries.filter(send=>!send.permalink).length;
-   notice(`В Slack отправлено кейсов: ${result.sent}`+(pending?` · Ссылка пока недоступна для ${pending}. Используйте «Получить ссылку»; сообщения уже отправлены.`:''));
-  }catch(error){
-   notice(error.message+' Отправка не повторяется автоматически. Перед новой отправкой проверьте историю и Slack.',true);
-  }finally{
-   // Reload history even if a later message in the batch failed. Preserve edits.
-   try{if(task?.id===selectedTaskId&&currentSet?.id===selectedSetId)await refreshSlackHistory();}
-   finally{sending=false;document.querySelectorAll('#sendSet,.send-saved-case').forEach(button=>button.disabled=false);}
-  }
- });
-}
-$('sendSet').onclick=()=>startSending([...currentSet.cases]);
-function renderSlackHistory(record,host){
- host.replaceChildren(el('strong','Отправки в Slack'));
- const sends=record.slack_sends||[];
- if(!sends.length){host.append(el('p','Сохранённых отправок пока нет.','muted'));return;}
- const list=el('ul');host.append(list);
- for(const send of sends){
-  const item=el('li');item.append(el('span',date(send.sent_at)+' · '));
-  if(send.permalink){
-   const link=el('a','Открыть в Slack');link.href=send.permalink;link.target='_blank';link.rel='noopener noreferrer';item.append(link);
-  }else{
-   item.append(el('span','Отправлено, ссылка пока недоступна. '));
-   const retry=el('button','Получить ссылку','secondary');retry.type='button';
-   retry.onclick=()=>{
-    retry.disabled=true;
-    const path=`${setPath()}/cases/${record.id}/slack-sends/${send.id}/permalink`;
-    action(async()=>{
-     try{const updated=await api(path,'POST');await refreshSlackHistory();notice(updated.permalink?'Ссылка сохранена.': 'Сообщение уже отправлено. Ссылка пока недоступна; можно повторить только получение ссылки.',!updated.permalink);}
-     finally{retry.disabled=false;}
-    });
-   };item.append(retry);
-  }
-  list.append(item);
- }
-}
-async function refreshSlackHistory(){
- const updated=await api(setPath());
- for(const record of currentSet.cases){
-  record.slack_sends=updated.cases.find(c=>c.id===record.id)?.slack_sends||[];
-  const host=document.querySelector(`[data-case-id="${record.id}"] .slack-history`);
-  if(host)renderSlackHistory(record,host);
- }
-}
-async function slackStatus(){const value=await api('/api/slack-status');$('slackStatus').textContent=value.connected?'Slack подключён':'Slack не подключён';}
-window.addEventListener('focus',()=>slackStatus().catch(()=>{}));
-window.addEventListener('beforeunload',event=>{
- const gen=frame.contentWindow.qaGenerator;
- if(pendingActions||dirtyCases.size||(task&&gen&&(JSON.stringify(gen.snapshot())!==settingsBaseline||JSON.stringify(gen.cases())!==resultBaseline))){event.preventDefault();event.returnValue='';}
-});
-Promise.all([listTasks(),slackStatus()]).then(()=>notice('Выберите задачу или создайте новую.')).catch(e=>notice(e.message,true));
+function renderHistory(record,host){host.replaceChildren();for(const delivery of record.slack_sends||[]){const row=el('p',date(delivery.sent_at)+' · ');if(delivery.permalink){const a=el('a','Открыть в Slack');a.href=delivery.permalink;a.target='_blank';a.rel='noopener noreferrer';row.append(a);}else{row.append(el('span','Отправлено, ссылка пока недоступна. '),button('Получить ссылку',()=>action(async()=>{await api(`${setPath()}/cases/${record.id}/slack-sends/${delivery.id}/permalink`,'POST');await refreshHistory();notice('Обновлена история ссылок. Сообщения повторно не отправлялись.');})));}host.append(row);}}
+async function refreshHistory(){if(!currentSet)return;const result=await api(setPath());for(const c of cases||[]){c.slack_sends=result.cases.find(r=>r.id===c.id)?.slack_sends||[];const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}}
+function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:currentSet.mention_users,cases:selected.map(({id,title,text,comment,request_text})=>({case_ids:[id],title,text,comment,request_text}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
+$('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
+$('deleteTask').onclick=()=>action(async()=>{if(!confirm('Удалить задачу со всеми кейсами без возможности восстановления?'))return;await api(`/api/tasks/${task.id}`,'DELETE');await newDraft(false);});
+
+async function slackStatus(){const status=await api('/api/slack-status');$('slackStatus').textContent=status.connected?'Slack подключён':'Slack не подключён';}
+window.addEventListener('focus',()=>slackStatus().catch(()=>{}));window.addEventListener('beforeunload',e=>{if(busy||(gen&&dirty())){e.preventDefault();e.returnValue='';}});
+(async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await slackStatus();})().catch(e=>notice(e.message,true));

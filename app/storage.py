@@ -77,6 +77,12 @@ def initialize():
         ''')
     from app.ownership_migration import migrate
     migrate(DB_PATH, backup_existing)
+    from app.workflow_migration import migrate as migrate_workflow
+    migrate_workflow(DB_PATH, backup_existing)
+    from app.region_accounts_migration import migrate as migrate_accounts
+    migrate_accounts(DB_PATH, backup_existing)
+    from app.single_set_migration import migrate as migrate_single_set
+    migrate_single_set(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 
