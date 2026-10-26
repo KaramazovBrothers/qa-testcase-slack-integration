@@ -643,7 +643,23 @@ dialog.querySelector('button').addEventListener('click',()=>dialog.close());dial
 $('region').addEventListener('input',renderMentions);
 $('addMention').addEventListener('click',()=>{if(!mentionDefaults)return;const region=$('region').value;mentionEdits[region].push('');renderMentions();});
 $('resetMentions').addEventListener('click',()=>{delete mentionEdits[$('region').value];renderMentions();});
-refreshLanguage();root.dataset.ready='1';loadMentions();
+// Small workspace adapter: reuse the exact generator and its current edited output.
+const workspaceFields=[...root.querySelectorAll('input[data-id],select[data-id],textarea[data-id]')];
+const initialFields=Object.fromEntries(workspaceFields.map(el=>[el.dataset.id,el.type==='checkbox'?el.checked:el.value]));
+window.qaGenerator={
+ snapshot(){return {fields:Object.fromEntries(workspaceFields.map(el=>[el.dataset.id,el.type==='checkbox'?el.checked:el.value])),language,payout_fee_manual:payoutFeeManual,mention_edits:JSON.parse(JSON.stringify(mentionEdits))};},
+ restore(settings={}){
+  const fields={...initialFields,...(settings.fields||{})};
+  workspaceFields.forEach(el=>{if(el.type==='checkbox')el.checked=fields[el.dataset.id];else el.value=fields[el.dataset.id];});
+  language=settings.language||'ru';payoutFeeManual=!!settings.payout_fee_manual;
+  Object.keys(mentionEdits).forEach(key=>delete mentionEdits[key]);
+  Object.assign(mentionEdits,JSON.parse(JSON.stringify(settings.mention_edits||{})));
+  generated=false;$('output').textContent='';$('count').textContent='0';$('message').textContent='';refreshLanguage();
+ },
+ cases(){return [...root.querySelectorAll('.case')].map(readCase);},
+ result(){return {cases:this.cases(),region:$('region').value,...mentionPayload()};}
+};
+refreshLanguage();root.dataset.ready='1';window.qaGenerator.ready=loadMentions();
 })(document.currentScript && document.currentScript.closest('[data-generator="v18"]') || Array.from(document.querySelectorAll('[data-generator="v18"]')).find(function(el){return el.dataset.ready!=='1';}));</script></div>
 
 </body></html>

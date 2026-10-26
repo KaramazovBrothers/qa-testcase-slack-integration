@@ -1,5 +1,120 @@
 # Work Project Status
 
+## Delivery: separate commit requested on 2026-10-26
+
+The user authorized publishing this complete update to main as a new commit,
+without amending previous history. Scope: local SQLite and QA workspace,
+standalone-generator access, Slack permalink history and user-owned storage.
+All 27 automated tests pass. Databases, backups, local routes and secrets are
+excluded from the commit. Earlier no-push notes below describe prior stages.
+
+
+## Latest update: prepare storage for multiple users
+
+- Added users with stable provider/subject identity and required task ownership.
+  Jira uniqueness is now per owner. Settings, sets, results/comments/bugs inherit
+  task ownership; Slack sends have an owner and cannot link to foreign cases.
+- Added versioned transactional migration with a private pre-migration SQLite
+  backup in data/backups. Existing IDs and data are retained under Local QA (1).
+  Repeat startup is idempotent; foreign-key failures roll back.
+- All local data endpoints now scope access to a server-owned identity dependency.
+  Cross-owner access returns 404. Clients cannot submit an owner ID to impersonate
+  another user. Slack binding is validated before posting.
+- Login, registration and shared-task access are not implemented. The dependency
+  still uses the local user. Global User OAuth remains local-user-only; other
+  identities cannot reuse its token. Scope and message formatting are unchanged.
+- All 27 tests pass: existing regression tests plus ownership, per-owner Jira
+  uniqueness, migration/backup/data retention, rollback and API isolation checks.
+- Next multi-user milestone: authenticated identity/session resolution, user
+  provisioning and per-user OAuth states/tokens. Keep deployment local until then.
+- No live Slack messages, commits or pushes were performed.
+
+
+## Latest UI update: generator without a task
+
+- /app now always shows an Open generator action, including with no tasks.
+- It opens the existing /generator in a separate tab, retaining all generation,
+  editing, copy and Slack-send controls without requiring Jira ID or task creation.
+- Existing User OAuth is shared with that page. Saved sets and send history still
+  belong to tasks. No generation or Slack transport changes were needed.
+
+## Latest local update: Slack permalinks and send history
+
+- Saved-case sends now commit Slack's returned channel, exact body-message ts and
+  UTC send time before calling chat.getPermalink with the same User OAuth token.
+- Additive SQLite tables slack_sends/slack_send_cases preserve multiple sends per
+  case and allow a single message to be associated with multiple cases.
+- The existing separate-thread format is unchanged: request, case body, optional
+  instructions. Links target the case body. No grouping behavior was changed.
+- /app passes case IDs, shows per-case clickable links and delivery history, and
+  provides a lookup-only retry for missing permalinks. Per-case and send-all
+  actions retain current message content. Partial failures refresh the history.
+- Lookup failures retain channel/ts and do not repost messages. Retry API is
+  nested under the protected task/set/case and validates its send association.
+- Preview-only generator sends have no persisted case identity. Save a set and
+  use the saved-case send controls for history; legacy preview behavior remains.
+- User OAuth and chat:write scope are unchanged. No extra permissions requested.
+- All 19 unittest tests pass. Chrome verified pending lookup, retry without
+  reposting, exact body link, multiple sends, reload and current-set sending with
+  no JavaScript errors. All Slack operations in tests were mocked; no real sends.
+- Corporate live delivery/link verification remains manual. No commit or push.
+
+
+## Current local update — 2026-10-26: SQLite and QA workspace
+
+This section supersedes the older “next step” entries below. Current source was
+read from local commit `1f23f17` (clean working tree before this work). The current
+code includes payout, Apple Pay/Google Pay, regional mentions and per-case Slack
+requests beyond parts of the historical handoff. Those behaviors were preserved.
+No commit or push was performed for this update.
+
+Implemented:
+
+- `app/storage.py`: local `data/qa_tests.db`, safe repeatable startup, private file
+  permissions, foreign keys, transactions and independent historical case sets.
+- `app/local_api.py`: task CRUD/search, per-task validated settings, set snapshots,
+  case edits, five execution statuses, QA comments, Jira bug URLs and counts.
+- `/app`: plain HTML/CSS/JavaScript workspace, task selection/creation/edit/delete,
+  existing generator embedded at `/generator`, explicit settings/set saving,
+  history, filters, asynchronous case saving and current-set Slack sending.
+- Generator changes are limited to a snapshot/restore adapter. Generation rules,
+  templates and existing editing/copy/sending handlers were not changed.
+- `app/main.py`: database lifespan, local router, workspace assets and a connection
+  status endpoint. `app/local_access.py` blocks management/generator/sending from
+  non-loopback clients/Hosts, forwarding headers and cross-origin requests.
+  OAuth callback remains reachable through the existing ngrok setup.
+- SQLite data/journals and local secrets are excluded in `.gitignore`.
+- README contains launch commands, API paths, storage/backup and access details.
+
+Validation:
+
+- Python 3.11: automatic API/storage/OAuth/mock-Slack tests pass, including task
+  CRUD, validation, 404/409/422 handling, statuses, comments/bugs, isolation,
+  cascade deletion and database restoration through a new application lifespan.
+- Local Uvicorn starts successfully on 127.0.0.1 (isolated copy: 8765; actual
+  project: 8766). Full process restart restored both saved sets, status and QA
+  comment. Bug URLs and all generator fields passed browser round-trip checks.
+- All 9 unittest tests pass in the actual project. `/app` returns 200 locally
+  and 403 for a public Host; the actual project database is empty and ignored.
+- Headless Chrome: task creation/switching, per-task settings, saved-set history,
+  status/comment saving and page reload passed with no JavaScript errors.
+- Browser comparison against the original generator: 162 configurations, 868
+  cases, identical titles/bodies/Slack requests. Matrix includes HPP/H2H/payout,
+  all three licenses, standard/Apple Pay/Google Pay, TR/RU/KE and feature toggles.
+  This is a targeted regression matrix, not the older exhaustive matrix below.
+- Existing Slack tests pass; OAuth still uses `user_scope=chat:write` and the
+  `authed_user` token. All test sends were mocked or browser-blocked.
+
+Remaining:
+
+- Corporate Slack App connection and user-triggered live delivery verification.
+- QA review using actual tasks. Automated browser fixtures were kept in the
+  isolated working copy; they were not copied to the project's real database.
+- Tokens still live only in memory and require reconnecting after restart.
+- Local single-QA operation only. No shared-server auth or multi-user support.
+- Confluence integration remains out of scope. No public management deployment.
+
+
 ## Handoff: start here
 
 - Source of truth: `main` in `KaramazovBrothers/qa-testcase-slack-integration`. Read this file and the current source before continuing; do not rely on old local previews.
