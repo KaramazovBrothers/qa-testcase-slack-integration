@@ -1,6 +1,7 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException
@@ -15,7 +16,39 @@ from app.slack_routes import get_slack_route
 
 load_dotenv()
 
-app = FastAPI(title="QA Testcase Slack Integration")
+from app import storage, slack_history
+from app.current_user import CurrentUserId
+from app.local_api import router as local_router
+from app.local_access import LocalAccessMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app):
+    storage.initialize()
+    yield
+
+
+app = FastAPI(title="QA Testcase Slack Integration", lifespan=lifespan)
+app.add_middleware(LocalAccessMiddleware)
+app.include_router(local_router)
+
+
+@app.get("/app", include_in_schema=False)
+async def workspace():
+    return FileResponse(BASE_DIR / "static" / "workspace.html", media_type="text/html")
+
+
+@app.get("/app/{asset}", include_in_schema=False)
+async def workspace_asset(asset: str):
+    if asset not in {"workspace.js", "workspace.css"}:
+        raise HTTPException(404, "Not found")
+    return FileResponse(BASE_DIR / "static" / asset)
+
+
+@app.get("/api/slack-status")
+async def slack_status(user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    return {"connected": user_id == storage.LOCAL_USER_ID and USER_TOKEN is not None}
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -25,6 +58,7 @@ USER_TOKEN: Optional[str] = None
 
 
 class GeneratedCase(BaseModel):
+    case_ids: list[Annotated[int, Field(strict=True, gt=0)]] = Field(default_factory=list, max_length=500)
     title: str
     text: str
     comment: str = ""
@@ -48,6 +82,7 @@ async def home() -> str:
         <h1>QA Testcase Slack Integration</h1>
         <p>Slack connected: <strong>{connected}</strong></p>
         <p><a href="/slack/oauth/start">Connect Slack</a></p>
+        <p><a href="/app">Open QA workspace</a></p>
         <p><a href="/generator">Open testcase generator</a></p>
       </body>
     </html>
@@ -95,15 +130,17 @@ async def slack_oauth_callback(code: str, state: str) -> str:
     return '<p>Slack connected. <a href="/">Back</a></p>'
 
 
-def require_slack_token() -> str:
+def require_slack_token(user_id: int = storage.LOCAL_USER_ID) -> str:
+    if user_id != storage.LOCAL_USER_ID:
+        raise HTTPException(status_code=403, detail="Per-user Slack OAuth is not configured yet")
     if not USER_TOKEN:
         raise HTTPException(status_code=401, detail="Connect Slack first")
     return USER_TOKEN
 
 
 @app.post("/slack/send", response_class=HTMLResponse)
-async def slack_send(text: str = Form(...)) -> str:
-    user_token = require_slack_token()
+async def slack_send(text: str = Form(...), user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
+    user_token = require_slack_token(user_id)
     channel_id = os.getenv("SLACK_CHANNEL_ID")
     if not channel_id:
         raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
@@ -113,8 +150,8 @@ async def slack_send(text: str = Form(...)) -> str:
 
 
 @app.post("/slack/send-cases")
-async def slack_send_cases(payload: SendCasesRequest) -> dict:
-    user_token = require_slack_token()
+async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
+    user_token = require_slack_token(user_id)
 
     if not payload.cases:
         raise HTTPException(status_code=400, detail="No generated cases")
@@ -137,6 +174,8 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
     operation = "выплаты" if payload.operation == "payout" else "депозита"
     request_text = payload.request_text.strip() if payload.request_text is not None else f"Просьба провести тест {operation}."
 
+    slack_history.validate_case_ids((case_id for case in payload.cases for case_id in case.case_ids), user_id)
+    deliveries = []
     sent = 0
     thread_ts_values: list[str] = []
 
@@ -149,7 +188,12 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
             raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
 
         message = f"{case.title}\n\n{case.text}"
-        await post_message(user_token, channel_id, message, thread_ts=thread_ts)
+        posted_case = await post_message(user_token, channel_id, message, thread_ts=thread_ts)
+        if case.case_ids:
+            # Commit channel/ts before lookup (or the optional instructions reply).
+            send_id = slack_history.record_send(case.case_ids, posted_case, user_id)
+            delivery = await slack_history.resolve_permalink(user_token, send_id, user_id)
+            deliveries.append({**delivery, "case_ids": list(dict.fromkeys(case.case_ids))})
 
         if case.comment.strip():
             await post_message(
@@ -167,6 +211,7 @@ async def slack_send_cases(payload: SendCasesRequest) -> dict:
         "channel_id": channel_id,
         "mentioned_users": user_ids,
         "thread_ts": thread_ts_values,
+        "deliveries": deliveries,
     }
 
 

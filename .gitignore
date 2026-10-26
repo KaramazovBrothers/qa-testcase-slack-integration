@@ -6,3 +6,14 @@ __pycache__/
 .idea/
 .vscode/
 config/slack_routes.json
+
+# Local QA data, database journals, secrets and exports
+data/
+*.db
+*.db-*
+*.sqlite*
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
