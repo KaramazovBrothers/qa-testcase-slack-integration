@@ -45,10 +45,11 @@ class TaskInput(Model):
 
 
 def task_identity(db, payload, user_id, existing=None):
-    if payload.jira_id and payload.title:
+    # Preserve each user-entered field independently.
+    if payload.title:
         return payload.jira_id, payload.title
-    if existing and existing['jira_id'] is None and existing['title'].startswith('Без названия '):
-        return None, existing['title']
+    if existing and existing['title'].startswith('Без названия '):
+        return payload.jira_id, existing['title']
     db.execute('INSERT OR IGNORE INTO user_counters(user_id) VALUES(?)',(user_id,))
     number=db.execute('SELECT unnamed_task FROM user_counters WHERE user_id=?',(user_id,)).fetchone()[0]
     while True:
@@ -57,7 +58,7 @@ def task_identity(db, payload, user_id, existing=None):
         if not db.execute('SELECT 1 FROM tasks WHERE owner_user_id=? AND title=?',(user_id,title)).fetchone():
             break
     db.execute('UPDATE user_counters SET unnamed_task=? WHERE user_id=?',(number,user_id))
-    return None,title
+    return payload.jira_id,title
 
 
 class Settings(Model):
