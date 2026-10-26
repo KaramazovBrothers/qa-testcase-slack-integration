@@ -35,10 +35,8 @@ class TaskInput(Model):
     @field_validator('jira_id')
     @classmethod
     def jira(cls, value):
-        value=(value or '').strip().upper()
-        if value and not re.fullmatch(r'[A-Z][A-Z0-9_]*-[1-9][0-9]*', value):
-            raise ValueError('Expected Jira ID such as QA-123')
-        return value or None
+        # Task IDs are user-provided labels; Slack delivery must not require Jira syntax.
+        return (value or '').strip() or None
 
     @field_validator('title')
     @classmethod
