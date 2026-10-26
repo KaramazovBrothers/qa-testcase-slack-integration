@@ -52,14 +52,12 @@
 </div>
 
 <div class="box">
-<h2>Основной пользователь и метод</h2>
+<h2>Метод и суммы</h2>
 <div class="grid">
 <label>Site URL<input data-id="site" placeholder="SITE_URL"></label>
 <label>Payment method<input data-id="method" placeholder="PAYMENT_METHOD"></label>
 <label data-id="nativeMethodWrap" class="hidden">Метод Google Pay для нативного приложения<input data-id="nativeMethod" placeholder="NATIVE_PAYMENT_METHOD"></label>
-<label>Account ID<input data-id="account" placeholder="ACCOUNT_ID"></label>
-<label>Login<input data-id="login" placeholder="LOGIN"></label>
-<label>Password<input type="password" autocomplete="off" data-id="password" placeholder="PASSWORD"></label>
+
 <label data-id="amountWrap">Сумма заявки<input data-id="amount" placeholder="AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
 <label data-id="payoutAmountWrap" class="hidden">Сумма заявки для обычной выплаты<input data-id="payoutAmount" placeholder="PAYOUT_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
 <label data-id="payoutFeeAmountWrap" class="hidden">Сумма заявки для выплаты с комиссией<input data-id="payoutFeeAmount" placeholder="PAYOUT_FEE_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
@@ -71,13 +69,24 @@
 </div>
 </div>
 
+<div class="box">
+<h2>Пользователь</h2>
+<label>Сохранённый пользователь выбранного региона<select class="account-picker" data-account-kind="main"><option value="">Новый пользователь · ввести вручную</option></select></label>
+<p class="field-hint">Выберите пользователя или заполните свои данные. Новые данные сохранятся для текущего региона по кнопке «Сохранить».</p>
+<div class="grid"><label>Account ID<input data-id="account" placeholder="ACCOUNT_ID"></label>
+<label>Login<input data-id="login" placeholder="LOGIN"></label>
+<label>Password<input type="text" autocomplete="off" data-id="password" placeholder="PASSWORD"></label></div>
+<button type="button" class="secondary standalone-account-save">Сохранить пользователей региона</button><p class="account-save-status" role="status"></p>
+</div>
+
 <div data-id="comBox" class="box hidden">
 <h2>COM: отдельный USD-пользователь</h2>
 <p>Для COM обязательна проверка с отдельным пользователем, у которого валюта аккаунта USD. Проверка по возможности совмещается с другим кейсом.</p>
 <div class="grid">
+<label style="grid-column:1/-1">Сохранённый USD-пользователь выбранного региона<select class="account-picker" data-account-kind="usd"><option value="">Новый пользователь · ввести вручную</option></select></label>
 <label>Account ID USD<input data-id="usdAccount" placeholder="USD_ACCOUNT_ID"></label>
 <label>Login USD<input data-id="usdLogin" placeholder="USD_LOGIN"></label>
-<label>Password USD<input type="password" autocomplete="off" data-id="usdPassword" placeholder="USD_PASSWORD"></label>
+<label>Password USD<input type="text" autocomplete="off" data-id="usdPassword" placeholder="USD_PASSWORD"></label>
 <label>Сумма заявки USD<input data-id="usdAmount" placeholder="USD_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
 <label data-id="usdUnderRequestWrap">Сумма заявки при недоплате USD<input data-id="usdUnderRequest" placeholder="USD_UNDER_REQUEST_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
 <label data-id="usdUnderWrap">Фактическая сумма недоплаты USD<input data-id="usdUnderPaid" placeholder="USD_UNDERPAY_ACTUAL_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
@@ -160,6 +169,7 @@ Object.assign(extraTranslations,{"Сумма заявки для кейса с �
 Object.assign(extraTranslations,{"Сумма заявки для кейса с комиссией должна соответствовать условию: после снятия 25% комиссии сумма должна быть дробной, чтобы проверить нашу внутреннюю логику округления.": ["The request amount for the commission case must meet this condition: after deducting the 25% commission, the amount must be fractional to test our internal rounding logic.", "Сума заявки для кейса з комісією має відповідати умові: після зняття комісії 25% сума має бути дробовою, щоб перевірити нашу внутрішню логіку округлення."], "Введите целое число: не более 6 цифр.": ["Enter a whole number: no more than 6 digits.", "Введіть ціле число: не більше 6 цифр."]});
 Object.assign(extraTranslations,{"Люди для тегов в Slack": ["People to mention in Slack", "Люди для тегів у Slack"], "Список выбранного региона применяется к каждому отправляемому кейсу. Пока используются заглушки.": ["The selected region list applies to every case sent. Placeholder names are used for now.", "Список обраного регіону застосовується до кожного надісланого кейса. Поки використовуються заглушки."], "Добавить человека": ["Add person", "Додати людину"], "Восстановить список региона": ["Reset region list", "Відновити список регіону"], "Исключить": ["Exclude", "Виключити"], "Человек для тега": ["Person to mention", "Людина для тега"], "Никто не будет отмечен.": ["Nobody will be mentioned.", "Нікого не буде позначено."], "Список людей ещё не загружен.": ["The people list has not loaded yet.", "Список людей ще не завантажено."], "Не удалось загрузить список людей. Обновите страницу.": ["Could not load the people list. Refresh the page.", "Не вдалося завантажити список людей. Оновіть сторінку."]});
 Object.assign(extraTranslations,{"Просьба провести тест депозита.": ["Please perform the deposit test.", "Просимо провести тест депозиту."], "Просьба провести тест выплаты.": ["Please perform the payout test.", "Просимо провести тест виплати."], "Обращение в Slack для этого кейса": ["Slack message for this case", "Звернення в Slack для цього кейсу"], "Отправить в Slack": ["Send to Slack", "Надіслати в Slack"], "Отправить в Slack всё": ["Send all to Slack", "Надіслати все в Slack"], "Отправить в Slack кейс ": ["Send case to Slack ", "Надіслати в Slack кейс "], "Редактировать": ["Edit", "Редагувати"], "Готово": ["Done", "Готово"], "Дополнительные инструкции (необязательно)": ["Additional instructions (optional)", "Додаткові інструкції (необов’язково)"], "Будут отправлены в тред под описанием кейса": ["Will be sent in the thread below the case description", "Буде надіслано в тред під описом кейсу"], "Отправляем кейс в Slack...": ["Sending case to Slack...", "Надсилаємо кейс у Slack..."], "Кейс отправлен в Slack.": ["Case sent to Slack.", "Кейс надіслано в Slack."], "Ошибка отправки в Slack: ": ["Slack sending error: ", "Помилка надсилання в Slack: "], "Отправляем кейсы в Slack...": ["Sending cases to Slack...", "Надсилаємо кейси в Slack..."], "Отправлено в Slack: ": ["Sent to Slack: ", "Надіслано в Slack: "], " кейс(ов).": [" case(s).", " кейс(ів)."], "Региональной команде можно передать первые три кейса. Чтобы сократить время проверки, остальные кейсы можно выполнить самостоятельно.": ["The first three cases can be assigned to the regional team. To reduce testing time, you can complete the remaining cases yourself.", "Регіональній команді можна передати перші три кейси. Щоб скоротити час перевірки, решту кейсів можна виконати самостійно."]});
+Object.assign(extraTranslations,{'выплата':['payout','виплата'],'Уведомление: Выплата будет с комиссией 25%':['Notice: The payout will include a 25% commission','Повідомлення: Виплата буде з комісією 25%']});
 Object.assign(translations,extraTranslations);
 const extraPhrasePattern=Object.keys(extraTranslations).sort((a,b)=>b.length-a.length).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
 const phraseKeys=Object.keys(translations).filter(k=>k.length>2).sort((a,b)=>b.length-a.length);
@@ -302,7 +312,7 @@ function generatePayoutCases(){
   const currency=usd?'USD':currentRegion().currency;
   const amount=val(usd?'usdAmount':fee?'payoutFeeAmount':'payoutAmount',usd?'USD_AMOUNT':fee?'PAYOUT_FEE_AMOUNT':'PAYOUT_AMOUNT');
   const lines=header('any',amount,currency,usd).map(line=>line==='Platform: any'?'Device: any':line==='Operation type: deposit'?'Operation type: payout':line);
-  lines.push('Commission: '+(fee?'25%':'0%'));
+  if(fee)lines.push('Commission: 25%');
   const steps=[
    'Открыть '+val('site',defaultSite())+'.',
    usd?'Авторизоваться указанным отдельным пользователем с валютой аккаунта USD.':'Авторизоваться указанным тестовым пользователем.',
@@ -310,7 +320,7 @@ function generatePayoutCases(){
    'Ввести указанную сумму заявки и нажать «Выплата».',
    'После создания заявки на выплату вернуться в кассу на вкладку «Выплата» и зафиксировать, что вывод недоступен: выплата ожидает по выбранному методу.'
   ];
-  return {title:(usd?'USD - ':'')+(fee?'выплата с комиссией 25%':'выплата без комиссии'),text:lines.join('\n')+'\n\nПредусловие: '+(fee?'Для метода настроена комиссия 25%.':'Для метода настроена комиссия 0%.')+'\n\n'+steps.map((x,i)=>'Шаг '+(i+1)+' - '+x).join('\n')+'\n\nПросьба записать видео полного флоу от шага 1 до шага '+steps.length+'. Обязательно прикрепить подтверждение операции - чек о зачислении средств.'};
+  return {title:(usd?'USD - ':'')+(fee?'выплата с комиссией 25%':'выплата'),text:lines.join('\n')+(fee?'\n\nУведомление: Выплата будет с комиссией 25%':'')+'\n\n'+steps.map((x,i)=>'Шаг '+(i+1)+' - '+x).join('\n')+'\n\nПросьба записать видео полного флоу от шага 1 до шага '+steps.length+'. Обязательно прикрепить подтверждение операции - чек о зачислении средств.'};
  });
 }
 const amountInputIds=["amount", "overRequest", "overPaid", "underRequest", "underPaid", "usdAmount", "usdUnderRequest", "usdUnderPaid", "usdOverRequest", "usdOverPaid", "payoutAmount", "payoutFeeAmount"];
@@ -568,13 +578,16 @@ function refreshLanguage(){
  root.querySelector('.close-image').setAttribute('aria-label',translate('Закрыть изображение'));
  updateUI();$('regionInfo').innerHTML=translate($('regionInfo').innerHTML);
 }
-let generated=false;
+let generated=false;let workspaceHooks=null;let accountOptions=[];let accountRegion=$('region').value;
 function generate(){
+ if(workspaceHooks?.beforeGenerate&&!workspaceHooks.beforeGenerate())return;
  try{
   protectedValues=[];protectValues=true;let cases;
   try{cases=generateCases();}finally{protectValues=false;}
   function local(text){return translate(text).replace(/⟦VALUE(\d+)⟧/g,(_,i)=>protectedValues[Number(i)]);}
+  const kinds=cases.map(c=>c.usd||/^USD -/.test(c.title)?'usd':'main');
   cases=cases.map(c=>({title:local(c.title),text:local(c.text)}));renderCases(cases);generated=true;
+  if(workspaceHooks)workspaceHooks.onGenerated(this,window.qaGenerator.cases().map((c,i)=>({...c,account_kind:kinds[i]})));
   $('message').textContent='';
  }catch(e){protectValues=false;$('message').textContent=translate('Ошибка генератора: ')+e.message;}
 }
@@ -593,7 +606,7 @@ amountInputIds.forEach(id=>{
   if(!validAmountInput(next)){event.preventDefault();$('message').textContent=translate('Введите целое число: не более 6 цифр.');}
  });
 });
-$('payoutFeeAmount').addEventListener('input',()=>{payoutFeeManual=$('payoutFeeAmount').value.trim()!=='';});
+$('payoutFeeAmount').addEventListener('input',()=>{payoutFeeManual=true;});
 $('payoutAmount').addEventListener('input',()=>{updatePayoutAmount();});
 $('generate').addEventListener('click',generate);
 function caseLabel(){return language==='en'?'Copy case':language==='uk'?'Копіювати кейс':'Копировать кейс';}
@@ -641,13 +654,77 @@ root.querySelectorAll('.thumbnail').forEach(button=>button.addEventListener('cli
 dialog.querySelector('button').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>{if(opener)opener.focus();});
 
 $('region').addEventListener('input',renderMentions);
+$('region').addEventListener('input',()=>{
+ const previous=accountRegion,region=$('region').value;
+ if(previous===region)return;
+ if(workspaceHooks?.beforeRegionChange&&!workspaceHooks.beforeRegionChange(previous)){$('region').value=previous;updateUI();renderMentions();return;}
+ accountRegion=region;
+ for(const id of ['account','login','password','usdAccount','usdLogin','usdPassword'])$(id).value='';
+ setAccountOptions([]);
+ if(workspaceHooks?.onRegionChange)workspaceHooks.onRegionChange(region);else loadAccounts().catch(accountError);
+});
+function accountError(error){root.querySelector('.account-save-status').textContent=error.message;}
+function setAccountOptions(accounts){
+ accountOptions=accounts;accountRegion=$('region').value;
+ for(const select of root.querySelectorAll('.account-picker')){
+  const ids=select.dataset.accountKind==='usd'?['usdAccount','usdLogin','usdPassword']:['account','login','password'];
+  select.replaceChildren(new Option('Новый пользователь · ввести вручную',''));
+  for(const a of accounts)select.add(new Option(`${a.name} · ${a.account_id||a.login||'без ID'}`,a.id));
+  const match=accounts.find(a=>[a.account_id,a.login,a.password].every((v,i)=>v===$(ids[i]).value));
+  select.value=match?.id||'';
+ }
+}
+let accountRequest=0;
+async function loadAccounts(){
+ const revision=++accountRequest,region=$('region').value;
+ const response=await fetch('/api/tasks/accounts?region='+encodeURIComponent(region));
+ if(!response.ok)throw Error('Не удалось загрузить пользователей региона');
+ const accounts=await response.json();
+ if(revision===accountRequest&&region===$('region').value)setAccountOptions(accounts);
+ return accounts;
+}
+for(const select of root.querySelectorAll('.account-picker')){
+ const ids=select.dataset.accountKind==='usd'?['usdAccount','usdLogin','usdPassword']:['account','login','password'];
+ select.addEventListener('change',()=>{
+  const a=accountOptions.find(a=>a.id===select.value),values=a?[a.account_id,a.login,a.password]:['','',''];
+  ids.forEach((id,i)=>$(id).value=values[i]);$(ids[0]).dispatchEvent(new Event('input',{bubbles:true}));
+  select.value=a?.id||'';
+ });
+ for(const id of ids)$(id).addEventListener('input',()=>{const a=accountOptions.find(a=>[a.account_id,a.login,a.password].every((v,i)=>v===$(ids[i]).value));select.value=a?.id||'';});
+}
+root.querySelector('.standalone-account-save').addEventListener('click',async()=>{
+ const button=root.querySelector('.standalone-account-save');button.disabled=true;
+ try{
+  const users=[];
+  for(const kind of ['main','usd']){
+   if(kind==='usd'&&$('license').value!=='com')continue;
+   const ids=kind==='usd'?['usdAccount','usdLogin','usdPassword']:['account','login','password'];
+   const values=ids.map(id=>$(id).value);if(!values.some(Boolean))continue;
+   const existing=accountOptions.find(a=>[a.account_id,a.login,a.password].every((v,i)=>v===values[i]));
+   users.push({id:existing?.id||crypto.randomUUID(),name:existing?.name||values[1]||values[0]||'Пользователь',kind,account_id:values[0],login:values[1],password:values[2]});
+  }
+  const response=await fetch('/api/tasks/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({region:$('region').value,test_accounts:users})});
+  const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Проверьте данные пользователя');
+  setAccountOptions(result.accounts);root.querySelector('.account-save-status').textContent='Пользователи региона сохранены';
+ }catch(error){accountError(error);}finally{button.disabled=false;}
+});
 $('addMention').addEventListener('click',()=>{if(!mentionDefaults)return;const region=$('region').value;mentionEdits[region].push('');renderMentions();});
 $('resetMentions').addEventListener('click',()=>{delete mentionEdits[$('region').value];renderMentions();});
 // Small workspace adapter: reuse the exact generator and its current edited output.
 const workspaceFields=[...root.querySelectorAll('input[data-id],select[data-id],textarea[data-id]')];
 const initialFields=Object.fromEntries(workspaceFields.map(el=>[el.dataset.id,el.type==='checkbox'?el.checked:el.value]));
 window.qaGenerator={
- snapshot(){return {fields:Object.fromEntries(workspaceFields.map(el=>[el.dataset.id,el.type==='checkbox'?el.checked:el.value])),language,payout_fee_manual:payoutFeeManual,mention_edits:JSON.parse(JSON.stringify(mentionEdits))};},
+ configure(hooks){workspaceHooks=hooks;root.querySelector('.standalone-account-save').hidden=true;['output','copyAll','sendSlack','sendSlackExceptFirst'].forEach(id=>$(id).hidden=true);},
+ setAccountOptions,
+ loadAccounts,
+ syncAccount(previous,next){
+  for(const ids of [['account','login','password'],['usdAccount','usdLogin','usdPassword']]){
+   const keys=['account_id','login','password'];
+   if(ids.every((id,i)=>$(id).value===previous[keys[i]]))ids.forEach((id,i)=>$(id).value=next[keys[i]]);
+  }
+ },
+ lockRegion(locked){$('region').disabled=!!locked;},
+ snapshot(){return {fields:Object.fromEntries(workspaceFields.map(el=>[el.dataset.id,el.type==='checkbox'?el.checked:el.value])),language,payout_fee_manual:payoutFeeManual,mention_edits:JSON.parse(JSON.stringify({[$('region').value]:mentionEdits[$('region').value]||[]}))};},
  restore(settings={}){
   const fields={...initialFields,...(settings.fields||{})};
   workspaceFields.forEach(el=>{if(el.type==='checkbox')el.checked=fields[el.dataset.id];else el.value=fields[el.dataset.id];});
@@ -659,7 +736,7 @@ window.qaGenerator={
  cases(){return [...root.querySelectorAll('.case')].map(readCase);},
  result(){return {cases:this.cases(),region:$('region').value,...mentionPayload()};}
 };
-refreshLanguage();root.dataset.ready='1';window.qaGenerator.ready=loadMentions();
+refreshLanguage();root.dataset.ready='1';window.qaGenerator.ready=Promise.all([loadMentions(),loadAccounts().catch(accountError)]);
 })(document.currentScript && document.currentScript.closest('[data-generator="v18"]') || Array.from(document.querySelectorAll('[data-generator="v18"]')).find(function(el){return el.dataset.ready!=='1';}));</script></div>
 
 </body></html>

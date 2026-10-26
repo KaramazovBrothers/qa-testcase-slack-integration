@@ -1,5 +1,80 @@
 # Work Project Status
 
+## Sidebar fix and GitHub delivery
+
+- Sticky sidebar offset follows the actual notice height, including wrapped
+  messages, so the task heading stays visible while scrolling.
+- Added “Сохранить текущий” next to “Новый черновик”; both Save buttons use the
+  same action handler and transactional save workflow.
+- User authorized publishing all accumulated changes as a separate commit.
+  Local databases, backups, credentials and Slack routes remain excluded.
+
+
+## Current update: one editable set and UI corrections
+
+- Replaced generation history with one editable case set per task. Both save
+  APIs reuse it; schema v4 enforces uniqueness. Migration retains the latest
+  existing set and backs up prior data before removing older sets.
+- Aligned Save with task inputs; removed the region confirmation before cases
+  exist; made test-account passwords visible in generator and account list.
+- Removed Jira-bug UI fields and hid empty Slack history. Sent-message links
+  and permalink-only retry remain supported.
+- Ordinary payout title is now “выплата”, with no zero-commission line or
+  precondition. Fee payout uses “Уведомление: Выплата будет с комиссией 25%”.
+  Other scenario steps and OAuth/message transport are unchanged.
+- Verified 36 Python tests and browser checks for layout, region dialog,
+  passwords, single-set regeneration, editing/reload and payout text. Deposit
+  parity verified across 108 configurations / 742 cases. No live Slack sends.
+- This update preserves current tasks/accounts; no database reset or Git push.
+- Future work: multi-user authentication and per-user OAuth sessions.
+
+
+## Current update: regional reusable users (2026-10-26)
+
+- Split the generator’s main user/method block into Method and amounts / User.
+- Main and USD selectors load saved users by region and fill ID/login/password.
+  Manual credentials are imported by Save even without generated cases; exact
+  duplicates reuse the existing regional user. Standalone generator can save
+  users without a task. Switching regions clears credential fields.
+- Schema v3: test_accounts now belongs to owner + region, shared by that owner’s
+  tasks in the same region. Cross-owner/region assignment is rejected by API/DB.
+  Deleting a task retains users; explicit user deletion clears assignments and
+  preserves historical case text. Missing users in a save payload are not deleted.
+- The user explicitly requested clearing old working data. The active local DB
+  is reset once at deployment; this is not an application-startup behavior.
+  Existing local backup files remain ignored by Git.
+- Verified 35 Python tests and browser region/reuse/manual-entry/reload/standalone
+  flows. Generator parity: 162 configurations / 868 cases. No real Slack sends.
+- OAuth, chat:write and Slack message format are unchanged. No commit/push.
+- Remaining: multi-user authentication and per-user OAuth storage remain future
+  work. Reconnect Slack after the local backend restart.
+
+
+## Current update: unified save and test-account assignment (2026-10-26)
+
+- Fixed payout fee autofill: clearing or editing is an explicit manual override.
+- One Save transaction stores metadata, settings, test accounts and current cases.
+  Missing Jira/title produces an owner-scoped “Без названия N”; repeated save is
+  idempotent, new generation preserves older sets.
+- Added task-local test accounts (ID/login/password), add/remove controls and a
+  dropdown per case. These are NOT Slack recipients or application identities.
+  Assignment updates credential headers and preserves scenario steps.
+- Case editor is inline with its action above the case; cases can be deleted.
+  Changes including deletions are persisted by the common Save button.
+- Only the selected region’s Slack mentions are stored. Tasks bind one region.
+  Version 2 migration backs up the DB, preserves ownership/history and removes
+  unrelated cached mention lists from settings snapshots.
+- User OAuth, scope chat:write, routing and Slack message/thread formatting are
+  unchanged. Send explicitly saves the current work before posting.
+- Verified: 31 Python tests; browser workflow/account assignment/edit/delete/
+  history/reload/permalink retry checks; generator parity: 162 configurations,
+  868 cases. Slack calls were mocked; no real messages sent.
+- Remaining: actual corporate Slack delivery requires user validation and
+  reconnection after backend restart. Multi-user authentication and per-user
+  OAuth storage remain a later milestone.
+- This update is local; no commit or push performed for these fixes.
+
+
 ## Delivery: separate commit requested on 2026-10-26
 
 The user authorized publishing this complete update to main as a new commit,

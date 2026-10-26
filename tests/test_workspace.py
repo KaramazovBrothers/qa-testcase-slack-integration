@@ -81,8 +81,8 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(loaded['cases'][0]['qa_comment'],'Issue found')
         self.assertEqual(loaded['cases'][0]['comment'],'Extra instructions')
         self.assertEqual(loaded['cases'][0]['bug_links'],['https://jira.example/browse/QA-4'])
-        self.assertEqual(self.client.get(f"/api/tasks/{a}/sets/{second['id']}").json()['counts']['Not tested'],1)
-        self.assertEqual(len(self.client.get(f'/api/tasks/{a}/sets').json()),2)
+        self.assertEqual(first['id'],second['id'])
+        self.assertEqual(len(self.client.get(f'/api/tasks/{a}/sets').json()),1)
         self.assertEqual(self.client.get(f'/api/tasks/{b}/sets/{other["id"]}').json()['counts']['Not tested'],1)
         self.client.delete(f'/api/tasks/{a}')
         with storage.connection() as db:

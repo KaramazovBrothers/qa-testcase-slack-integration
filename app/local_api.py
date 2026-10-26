@@ -29,23 +29,37 @@ class Model(BaseModel):
 
 
 class TaskInput(Model):
-    jira_id: str = Field(min_length=3, max_length=80)
-    title: str = Field(min_length=1, max_length=300)
+    jira_id: str | None = Field(default=None, max_length=80)
+    title: str = Field(default='', max_length=300)
 
     @field_validator('jira_id')
     @classmethod
     def jira(cls, value):
-        value = value.strip().upper()
-        if not re.fullmatch(r'[A-Z][A-Z0-9_]*-[1-9][0-9]*', value):
+        value=(value or '').strip().upper()
+        if value and not re.fullmatch(r'[A-Z][A-Z0-9_]*-[1-9][0-9]*', value):
             raise ValueError('Expected Jira ID such as QA-123')
-        return value
+        return value or None
 
     @field_validator('title')
     @classmethod
-    def nonblank(cls, value):
-        if not value.strip():
-            raise ValueError('Title cannot be blank')
+    def title_value(cls, value):
         return value.strip()
+
+
+def task_identity(db, payload, user_id, existing=None):
+    if payload.jira_id and payload.title:
+        return payload.jira_id, payload.title
+    if existing and existing['jira_id'] is None and existing['title'].startswith('Без названия '):
+        return None, existing['title']
+    db.execute('INSERT OR IGNORE INTO user_counters(user_id) VALUES(?)',(user_id,))
+    number=db.execute('SELECT unnamed_task FROM user_counters WHERE user_id=?',(user_id,)).fetchone()[0]
+    while True:
+        number+=1
+        title=f'Без названия {number}'
+        if not db.execute('SELECT 1 FROM tasks WHERE owner_user_id=? AND title=?',(user_id,title)).fetchone():
+            break
+    db.execute('UPDATE user_counters SET unnamed_task=? WHERE user_id=?',(number,user_id))
+    return None,title
 
 
 class Settings(Model):
@@ -53,6 +67,12 @@ class Settings(Model):
     language: Literal['ru','en','uk'] = 'ru'
     payout_fee_manual: bool = False
     mention_edits: dict[str, list[str]] = Field(default_factory=dict, max_length=19)
+
+    @model_validator(mode='after')
+    def one_region(self):
+        region=self.fields.get('region','TR')
+        self.mention_edits={region:self.mention_edits[region]} if region in self.mention_edits else {}
+        return self
 
     @field_validator('fields')
     @classmethod
@@ -123,6 +143,7 @@ class SetInput(Model):
 
 
 class CaseUpdate(CaseInput):
+    test_account_id: str | None = Field(default=None, max_length=100)
     title: str = Field(default='', min_length=1, max_length=4000)
     text: str = Field(default='', min_length=1, max_length=100000)
     status: Status = 'Not tested'
@@ -150,6 +171,13 @@ def require(db, table, record_id, clause='', params=()):
     return row
 
 
+def bind_region(db, task_id, region):
+    current=db.execute('SELECT region FROM tasks WHERE id=?',(task_id,)).fetchone()[0]
+    if current and current!=region:
+        raise HTTPException(409,'A task has one region. Create a new task for another region.')
+    db.execute('UPDATE tasks SET region=? WHERE id=?',(region,task_id))
+
+
 def touch(db, task_id):
     db.execute('UPDATE tasks SET updated_at=? WHERE id=?', (now(), task_id))
 
@@ -172,15 +200,17 @@ def get_set(db, task_id, set_id, user_id=storage.LOCAL_USER_ID):
 @router.get('')
 def list_tasks(q: str = Query(default='', max_length=80), user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:
-        return [dict(r) for r in db.execute('SELECT id,jira_id,title,created_at,updated_at FROM tasks WHERE owner_user_id=? AND instr(upper(jira_id),upper(?))>0 ORDER BY updated_at DESC,id DESC', (user_id,q.strip()))]
+        return [dict(r) for r in db.execute("SELECT id,jira_id,title,created_at,updated_at FROM tasks WHERE owner_user_id=? AND (instr(upper(coalesce(jira_id,'')),upper(?))>0 OR instr(upper(title),upper(?))>0) ORDER BY updated_at DESC,id DESC", (user_id,q.strip(),q.strip()))]
 
 
 @router.post('', status_code=201)
 def create_task(payload: TaskInput, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     try:
         with storage.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
             stamp = now()
-            cursor = db.execute('INSERT INTO tasks(owner_user_id,jira_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', (user_id,payload.jira_id,payload.title,stamp,stamp))
+            jira_id,title=task_identity(db,payload,user_id)
+            cursor = db.execute('INSERT INTO tasks(owner_user_id,jira_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', (user_id,jira_id,title,stamp,stamp))
             return storage.decode(require_task(db,cursor.lastrowid,user_id),'settings')
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, 'Jira ID already exists') from exc
@@ -189,15 +219,19 @@ def create_task(payload: TaskInput, user_id: CurrentUserId = storage.LOCAL_USER_
 @router.get('/{task_id}')
 def read_task(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:
-        return storage.decode(require_task(db,task_id,user_id),'settings')
+        result=storage.decode(require_task(db,task_id,user_id),'settings')
+        result['test_accounts']=[dict(r) for r in db.execute('SELECT * FROM test_accounts WHERE owner_user_id=? AND region=? ORDER BY rowid',(user_id,result.get('region') or result['settings'].get('fields',{}).get('region','TR')))]
+        return result
 
 
 @router.put('/{task_id}')
 def update_task(task_id: int, payload: TaskInput, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     try:
         with storage.connection() as db:
-            require_task(db,task_id,user_id)
-            db.execute('UPDATE tasks SET jira_id=?,title=?,updated_at=? WHERE id=?', (payload.jira_id,payload.title,now(),task_id))
+            db.execute('BEGIN IMMEDIATE')
+            existing=require_task(db,task_id,user_id)
+            jira_id,title=task_identity(db,payload,user_id,existing)
+            db.execute('UPDATE tasks SET jira_id=?,title=?,updated_at=? WHERE id=?', (jira_id,title,now(),task_id))
             return storage.decode(require_task(db,task_id,user_id),'settings')
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, 'Jira ID already exists') from exc
@@ -221,6 +255,7 @@ def read_settings(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
 def save_settings(task_id: int, payload: Settings, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:
         require_task(db,task_id,user_id)
+        if 'region' in payload.fields:bind_region(db,task_id,payload.fields['region'])
         db.execute('UPDATE tasks SET settings=?,updated_at=? WHERE id=?', (payload.model_dump_json(),now(),task_id))
     return payload
 
@@ -236,10 +271,18 @@ def list_sets(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
 def save_set(task_id: int, payload: SetInput, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:
         require_task(db,task_id,user_id)
+        bind_region(db,task_id,payload.region)
         stamp = now()
-        cursor = db.execute('INSERT INTO case_sets(task_id,name,created_at,settings,region,operation,mention_users) VALUES(?,?,?,?,?,?,?)',
-                            (task_id,payload.name.strip(),stamp,payload.settings.model_dump_json(),payload.region,payload.operation,json.dumps(payload.mention_users)))
-        set_id = cursor.lastrowid
+        existing=db.execute('SELECT id FROM case_sets WHERE task_id=?',(task_id,)).fetchone()
+        if existing:
+            set_id=existing['id']
+            db.execute('DELETE FROM test_cases WHERE set_id=?',(set_id,))
+            db.execute('UPDATE case_sets SET name=?,settings=?,region=?,operation=?,mention_users=? WHERE id=?',
+                (payload.name.strip(),payload.settings.model_dump_json(),payload.region,payload.operation,json.dumps(payload.mention_users),set_id))
+        else:
+            cursor = db.execute('INSERT INTO case_sets(task_id,name,created_at,settings,region,operation,mention_users) VALUES(?,?,?,?,?,?,?)',
+                (task_id,payload.name.strip(),stamp,payload.settings.model_dump_json(),payload.region,payload.operation,json.dumps(payload.mention_users)))
+            set_id=cursor.lastrowid
         db.executemany('INSERT INTO test_cases(set_id,position,title,text,comment,request_text,updated_at) VALUES(?,?,?,?,?,?,?)',
                        [(set_id,i,c.title,c.text,c.comment,c.request_text,stamp) for i,c in enumerate(payload.cases)])
         db.execute('UPDATE tasks SET settings=?,updated_at=? WHERE id=?', (payload.settings.model_dump_json(),stamp,task_id))
@@ -258,8 +301,11 @@ def update_case(task_id: int, set_id: int, case_id: int, payload: CaseUpdate, us
     with storage.connection() as db:
         require_task(db,task_id,user_id)
         require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
-        require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
+        original=require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
         data = payload.model_dump(exclude_unset=True)
+        if 'test_account_id' in data:
+            from app.case_accounts import apply_account
+            data['text']=apply_account(db,task_id,data['test_account_id'],data.get('text',original['text']))
         for key, value in data.items():
             db.execute(f'UPDATE test_cases SET {key}=? WHERE id=?', (json.dumps(value) if key=='bug_links' else value, case_id))
         db.execute('UPDATE test_cases SET updated_at=? WHERE id=?', (now(),case_id))
@@ -280,3 +326,14 @@ async def retry_slack_permalink(task_id: int, set_id: int, case_id: int, send_id
         if not db.execute('SELECT 1 FROM slack_send_cases WHERE send_id=? AND case_id=?', (send_id, case_id)).fetchone():
             raise HTTPException(404, 'Slack send not found for this case')
     return await slack_history.resolve_permalink(require_slack_token(user_id), send_id, user_id)
+
+
+@router.delete('/{task_id}/sets/{set_id}/cases/{case_id}', status_code=204)
+def delete_case(task_id: int, set_id: int, case_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    with storage.connection() as db:
+        require_task(db,task_id,user_id)
+        require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
+        require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
+        db.execute('DELETE FROM test_cases WHERE id=?',(case_id,))
+        touch(db,task_id)
+    return Response(status_code=204)

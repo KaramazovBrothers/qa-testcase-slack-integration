@@ -19,6 +19,7 @@ load_dotenv()
 from app import storage, slack_history
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
+from app.workspace_api import router as workspace_router
 from app.local_access import LocalAccessMiddleware
 
 
@@ -30,6 +31,7 @@ async def lifespan(app):
 
 app = FastAPI(title="QA Testcase Slack Integration", lifespan=lifespan)
 app.add_middleware(LocalAccessMiddleware)
+app.include_router(workspace_router)
 app.include_router(local_router)
 
 

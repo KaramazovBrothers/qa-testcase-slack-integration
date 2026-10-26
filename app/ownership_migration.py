@@ -3,14 +3,14 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 
-def backup_database(db_path):
+def backup_database(db_path, label='pre-users'):
     folder = db_path.parent / 'backups'
     folder.mkdir(mode=0o700, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    target = folder / f'{db_path.stem}.pre-users.{stamp}.db'
+    target = folder / f'{db_path.stem}.{label}.{stamp}.db'
     fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     os.close(fd)
     source = sqlite3.connect(db_path)
@@ -93,7 +93,7 @@ def migrate(db_path, backup_existing):
                 BEGIN SELECT RAISE(ABORT,'Ownership transfer is not supported'); END''')
         if db.execute('PRAGMA foreign_key_check').fetchall():
             raise RuntimeError('Foreign key check failed; ownership migration rolled back')
-        db.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
+        db.execute(f'PRAGMA user_version={max(version, 1)}')
         db.commit()
     except BaseException:
         db.rollback()
