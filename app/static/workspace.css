@@ -8,3 +8,5 @@
 .task-toolbar{align-items:flex-end}.task-toolbar label{margin:0;min-width:0}.task-toolbar .grow{min-width:220px}.task-toolbar button{min-height:43px}.slack-history:empty{display:none}
 
 .sidebar-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sidebar-actions button{padding:9px 6px;font-size:12px;line-height:1.4}
+
+#casesPanel .cases-actions{justify-content:flex-end;margin-top:12px}
