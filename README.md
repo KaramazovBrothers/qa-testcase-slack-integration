@@ -71,8 +71,49 @@ Interactive schema: `http://127.0.0.1:8000/docs`.
 | GET / POST | `/api/tasks/{task_id}/sets` | List / create a new set |
 | GET | `/api/tasks/{task_id}/sets/{set_id}` | Read cases, snapshot and status counts |
 | PATCH / DELETE | `/api/tasks/{task_id}/sets/{set_id}/cases/{case_id}` | Update case fields / delete case |
+| GET | `/api/tasks/{task_id}/sets/{set_id}/cases/{case_id}/slack-replies` | Replies imported from the case thread |
 | POST | `/api/tasks/save` | Atomically save task, settings, accounts and current set |
 | GET | `/api/slack-status` | Connection flag without exposing the token |
+
+### Slack Events: thread replies
+
+Replies written under a sent case are imported back and shown next to its send
+history. Sending still uses the User OAuth token; events add a second, inbound
+path.
+
+```
+case sent  -> channel + parent thread_ts + our own message ts are stored
+someone replies in the thread
+Slack POST /slack/events -> signature check -> is (channel, thread_ts) ours?
+                              yes -> store the reply for the case
+                              no  -> ignore (one indexed query)
+```
+
+`POST /slack/events` is public by design — Slack posts from its own servers —
+so it is excluded from the local-access middleware and authenticated by the
+signing secret instead. It answers `url_verification` challenges, ignores
+retries (`x-slack-retry-num`), bot/app messages, edits and non-thread messages,
+and deduplicates by `event_id`. Our own messages are recognised by message
+`ts`, not by author: the same person may answer in the thread later by hand.
+
+Setup, in this order (events require a reachable URL):
+
+1. Copy the **Signing Secret** (Slack App → Basic Information → App
+   Credentials) into `.env` as `SLACK_SIGNING_SECRET` and restart the backend.
+2. Expose the callback host, e.g. `ngrok http 8000`, and make sure
+   `SLACK_REDIRECT_URI` still points at `/slack/oauth/callback`.
+3. Slack App → **Event Subscriptions** → Request URL:
+   `https://<tunnel-host>/slack/events`. Slack sends the challenge immediately;
+   a green "Verified" means the signature and the tunnel work.
+4. Under **Subscribe to events on behalf of users** add `message.channels` and
+   `message.groups`, then re-authorize: the user scopes
+   `channels:history,groups:history` must already be granted.
+5. Send a case and reply to it in Slack; the reply appears under the case after
+   the workspace refreshes history.
+
+Requires the backend and the tunnel to stay up while events arrive. Slack
+retries for a short while only, so replies posted while the laptop is offline
+are not recovered later — a permanent HTTPS address is needed for everyday use.
 
 Case updates support `status` (`Not tested`, `Passed`, `Failed`, `Blocked`,
 `Skipped`), `qa_comment`, `bug_links` (HTTP(S) URLs), `title`, `text`, `comment`
