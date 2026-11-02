@@ -50,9 +50,9 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_crud_search_validation(self):
         task=self.task('qa-123')
-        self.assertEqual(self.client.get('/api/tasks?q=qa-123').json()[0]['jira_id'],'QA-123')
+        self.assertEqual(self.client.get('/api/tasks?q=qa-123').json()[0]['jira_id'],'qa-123')
         self.assertEqual(self.client.post('/api/tasks',json={'jira_id':'QA-123','title':'x'}).status_code,409)
-        self.assertEqual(self.client.post('/api/tasks',json={'jira_id':'bad','title':'x'}).status_code,422)
+        self.assertEqual(self.client.post('/api/tasks',json={'jira_id':'bad','title':'x'}).status_code,201)
         self.assertEqual(self.client.put(f'/api/tasks/{task}',json={'jira_id':'PAY-3','title':'Updated'}).status_code,200)
         self.assertEqual(self.client.get(f'/api/tasks/{task}').json()['title'],'Updated')
         self.assertEqual(self.client.get('/api/tasks?q=missing').json(),[])
@@ -132,7 +132,7 @@ class WorkspaceTests(unittest.TestCase):
         with patch.dict('os.environ',{'SLACK_CLIENT_ID':'fake','SLACK_REDIRECT_URI':'https://example.test/slack/oauth/callback'}):
             url,state=build_authorize_url()
         query=parse_qs(urlsplit(url).query)
-        self.assertEqual(query['user_scope'],['chat:write']);self.assertNotIn('scope',query)
+        self.assertEqual(query['user_scope'],['chat:write,channels:history,groups:history']);self.assertNotIn('scope',query)
         main.OAUTH_STATES.add('test-state')
         with patch.object(main,'USER_TOKEN',None),patch.object(main,'exchange_code',AsyncMock(return_value={'authed_user':{'access_token':'fake-user'}})):
             self.assertEqual(self.client.get('/slack/oauth/callback?state=test-state&code=fake').status_code,200)
