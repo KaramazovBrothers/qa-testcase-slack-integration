@@ -1,10 +1,10 @@
 // Browser entry point for the test-case generator.
 // Loaded as an ES module; shares behaviour with the legacy inline script but
 // keeps state in `store.js` instead of a closure.
-import { state } from './generator/store.js';
-import { installWorkspaceApi, start } from './generator/index.js';
-import { bindEvents } from './generator/ui/events.js';
-import { cacheStaticNodes } from './generator/ui/language.js';
+import { state } from './store.js';
+import { installWorkspaceApi, start } from './index.js';
+import { bindEvents } from './ui/events.js';
+import { cacheStaticNodes } from './ui/language.js';
 
 const root = document.currentScript?.closest('[data-generator]')
   || Array.from(document.querySelectorAll('[data-generator]')).find((el) => el.dataset.ready !== '1');

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unittest suite
+        run: python -m unittest discover -s tests -v
+
+  frontend:
+    name: Frontend build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dev dependencies
+        run: npm ci
+
+      - name: Validate module graph
+        run: python3 scripts/build_static.py --validate
+
+      - name: Committed bundle is up to date
+        run: python3 scripts/build_static.py --check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Load every source module
+        run: |
+          # No test imports main.js (it needs a browser document), so a broken
+          # relative import there would only surface in production.
+          for file in $(find static-src -name '*.js' | sort); do
+            spec="./${file#static-src/}"
+            if [ "$spec" = "./generator/main.js" ]; then
+              echo "skip (browser entry, needs document): $spec"
+              continue
+            fi
+            (cd static-src && node --input-type=module -e "import('$spec')") || exit 1
+          done

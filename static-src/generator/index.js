@@ -1,11 +1,11 @@
-import { state } from '../store.js';
-import { generateCases } from '../cases/index.js';
-import { renderMentions, loadMentions, addMention, resetMentions, mentionPayload } from './mentions.js';
-import { cacheStaticNodes, refreshLanguage } from './language.js';
+import { state } from './store.js';
+import { generateCases } from './cases/index.js';
+import { renderMentions, loadMentions, addMention, resetMentions, mentionPayload } from './ui/mentions.js';
+import { cacheStaticNodes, refreshLanguage } from './ui/language.js';
 import {
   accountError, setAccountOptions, loadAccounts, syncAccountFields, bindAccountPickers,
-} from './accounts.js';
-import { readCase } from '../cases/render.js';
+} from './ui/accounts.js';
+import { readCase } from './cases/render.js';
 
 /** Inputs captured at start so `restore()` can reset every field. */
 let workspaceFields = [];

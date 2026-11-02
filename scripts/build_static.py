@@ -43,6 +43,133 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+IMPORT_RE = re.compile(r"(?m)^\s*import\b[\s\S]*?from\s*['\"]([^'\"]+)['\"]")
+SIDE_EFFECT_IMPORT_RE = re.compile(r"(?m)^\s*import\s*['\"]([^'\"]+)['\"]")
+EXPORT_FROM_RE = re.compile(r"(?m)^\s*export\s*\{[\s\S]*?\}\s*from\s*['\"]([^'\"]+)['\"]")
+EXPORT_NAME_RE = re.compile(r"(?ms)^\s*export\s+(?:const|let|var|function|class|async\s+function)\s+([A-Za-z_$][\w$]*)")
+EXPORT_LIST_RE = re.compile(r"(?ms)^\s*export\s*\{([^}]*)\}")
+
+
+def _exported_names(source: str) -> set[str]:
+    """Names a module exports, including `export { a, b } from './x.js'`."""
+    names = set(EXPORT_NAME_RE.findall(source))
+    for braces in EXPORT_LIST_RE.findall(source):
+        for piece in braces.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            alias = piece.split(" as ")[-1].strip()
+            if re.fullmatch(r"[A-Za-z_$][\w$]*", alias) and alias != "default":
+                names.add(alias)
+    return names
+
+
+def module_files() -> list[Path]:
+    return sorted(SRC.rglob("*.js"))
+
+
+class ModuleGraphError(RuntimeError):
+    """Raised when static-src/ cannot be bundled safely."""
+
+
+def _local_imports(source: str) -> list[str]:
+    specs = (
+        IMPORT_RE.findall(source)
+        + SIDE_EFFECT_IMPORT_RE.findall(source)
+        + EXPORT_FROM_RE.findall(source)
+    )
+    return [spec for spec in specs if spec.startswith(".")]
+
+
+def validate_module_graph() -> None:
+    """Fail the build when the module graph cannot be resolved or bundled.
+
+    Catches the class of bug a syntax check cannot see: relative imports that
+    point at a non-existent file (what broke `index.js`/`main.js`), imports of
+    a name the target module never exports, and identifiers that would collide
+    once every module is concatenated into one file.
+    """
+    problems: list[str] = []
+    files = module_files()
+    if not files:
+        raise ModuleGraphError("no modules found under static-src/")
+
+    exports: dict[Path, set[str]] = {}
+    for path in files:
+        source = _read(path)
+        exports[path.resolve()] = _exported_names(source)
+        for spec in _local_imports(source):
+            target = (path.parent / spec).resolve()
+            if not target.exists():
+                problems.append(f"{path.relative_to(ROOT)}: import '{spec}' does not resolve")
+            elif target.suffix != ".js":
+                problems.append(f"{path.relative_to(ROOT)}: import '{spec}' is not a .js module")
+
+    # `import { a, b as c } from './x.js'` must name real exports.
+    for path in files:
+        source = _read(path)
+        for spec, names in _named_imports(source):
+            target = (path.parent / spec).resolve()
+            if target not in exports:
+                continue
+            for name, alias in names:
+                if name not in exports[target]:
+                    problems.append(
+                        f"{path.relative_to(ROOT)}: '{name}' is not exported by {spec}"
+                    )
+
+    # After concatenation every module shares one scope; duplicate top-level
+    # declarations break the bundle with "Identifier has already been declared".
+    declared: dict[str, Path] = {}
+    for path in files:
+        source = _read(path)
+        for name in _top_level_declarations(source):
+            if name in declared and declared[name] != path:
+                problems.append(
+                    f"{path.relative_to(ROOT)}: '{name}' also declared in "
+                    f"{declared[name].relative_to(ROOT)} (collides when bundled)"
+                )
+            else:
+                declared[name] = path
+
+    # Every module reachable from the entry point keeps the bundle honest.
+    for path in files:
+        if path.resolve() not in exports:
+            raise ModuleGraphError(f"failed to scan {path}")
+
+    if problems:
+        raise ModuleGraphError("invalid module graph:\n  " + "\n  ".join(problems))
+
+
+def _named_imports(source: str) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Yield (specifier, [(importedName, localAlias)]) for brace imports."""
+    result = []
+    pattern = re.compile(r"(?ms)^\s*import\s*\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]")
+    for braces, spec in pattern.findall(source):
+        if not spec.startswith("."):
+            continue
+        names = []
+        for piece in braces.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            if " as " in piece:
+                original, alias = (part.strip() for part in piece.split(" as ", 1))
+            else:
+                original = alias = piece
+            names.append((original, alias))
+        result.append((spec, names))
+    return result
+
+
+def _top_level_declarations(source: str) -> list[str]:
+    """Names declared at column 0, i.e. what the bundle puts in one scope."""
+    pattern = re.compile(
+        r"(?m)^(?:export\s+)?(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)"
+    )
+    return pattern.findall(source)
+
+
 def _markup() -> str:
     """The generator form markup, without the outer `.dg14` wrapper."""
     raw = _read(SRC / "generator" / "generator.html")
@@ -137,6 +264,17 @@ def outputs() -> dict[Path, str]:
 
 def main(argv: list[str]) -> int:
     check = "--check" in argv
+    validate_only = "--validate" in argv
+
+    try:
+        validate_module_graph()
+    except ModuleGraphError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    if validate_only:
+        print(f"Module graph is valid ({len(module_files())} modules).")
+        return 0
+
     stale: list[Path] = []
     for path, content in outputs().items():
         current = path.read_text(encoding="utf-8") if path.exists() else None
