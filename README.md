@@ -126,7 +126,9 @@ errors and never automatically resends a batch.
   send from the saved-case section to keep delivery history. Legacy requests
   without IDs keep their previous sending behavior.
 - No additional permissions: `chat.getPermalink` requires no extra scopes;
-  User OAuth remains `user_scope=chat:write`.
+  User OAuth requests `chat:write,channels:history,groups:history` as user scopes.
+  Messages use `authed_user.access_token`; no bot token is used.
+  Event subscriptions are not implemented yet; `/slack/events` is unavailable.
   Reference: https://docs.slack.dev/reference/methods/chat.getPermalink/
 
 Verification: all 19 unittest tests pass. New checks cover additive database
