@@ -327,6 +327,22 @@ async def retry_slack_permalink(task_id: int, set_id: int, case_id: int, send_id
     return await slack_history.resolve_permalink(require_slack_token(user_id), send_id, user_id)
 
 
+@router.get('/{task_id}/sets/{set_id}/cases/{case_id}/slack-replies')
+def read_slack_replies(task_id: int, set_id: int, case_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    """Replies imported from the Slack thread of this case.
+
+    The workspace polls this endpoint; an empty list is a valid answer both for
+    "no replies yet" and for "this case was never sent".
+    """
+    from app.slack_events import replies_for_case
+
+    with storage.connection() as db:
+        require_task(db,task_id,user_id)
+        require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
+        require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
+        return replies_for_case(db, case_id)
+
+
 @router.delete('/{task_id}/sets/{set_id}/cases/{case_id}', status_code=204)
 def delete_case(task_id: int, set_id: int, case_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:

@@ -10,3 +10,7 @@
 .sidebar-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sidebar-actions button{padding:9px 6px;font-size:12px;line-height:1.4}
 
 #casesPanel .cases-actions{justify-content:flex-end;margin-top:12px}
+
+/* Replies imported from the Slack thread. */
+.slack-replies{margin-top:8px;padding:8px 10px;border-left:3px solid #e8912d;background:#fff8ef;border-radius:4px}
+.slack-replies p{margin:4px 0;font-size:13px}

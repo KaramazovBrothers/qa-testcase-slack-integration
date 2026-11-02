@@ -1,4 +1,5 @@
 """Persist acknowledged Slack messages before attempting permalink resolution."""
+import json
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -22,17 +23,42 @@ def validate_case_ids(case_ids, user_id=storage.LOCAL_USER_ID):
                 raise HTTPException(404, 'Saved test case not found')
 
 
-def record_send(case_ids, response, user_id=storage.LOCAL_USER_ID):
+def record_send(case_ids, response, user_id=storage.LOCAL_USER_ID, thread_ts=None, own_ts=()):
+    """Persist an acknowledged message.
+
+    `thread_ts` is the parent message of the thread (Slack sends every reply in
+    that thread with the same value) and `own_ts` lists the messages the app
+    itself posted there, so replies can be filtered without looking at authors.
+    """
     # ts must remain a string: float conversion loses Slack timestamp precision.
     channel, ts = response.get('channel'), response.get('ts')
     if not isinstance(channel, str) or not channel or not isinstance(ts, str) or not ts:
         raise HTTPException(502, 'Message posted, but Slack returned no channel/ts. Check Slack before sending again.')
+    parent = thread_ts if isinstance(thread_ts, str) and thread_ts else ts
+    posted = [value for value in dict.fromkeys([*own_ts, ts]) if isinstance(value, str) and value]
     with storage.connection() as db:
-        cursor = db.execute('INSERT INTO slack_sends(owner_user_id,channel,ts,sent_at) VALUES(?,?,?,?)', (user_id, channel, ts, now()))
+        cursor = db.execute(
+            'INSERT INTO slack_sends(owner_user_id,channel,ts,sent_at,thread_ts,own_ts) VALUES(?,?,?,?,?,?)',
+            (user_id, channel, ts, now(), parent, json.dumps(posted)),
+        )
         send_id = cursor.lastrowid
         db.executemany('INSERT INTO slack_send_cases(send_id,case_id) VALUES(?,?)',
                        [(send_id, case_id) for case_id in set(case_ids)])
     return send_id
+
+
+def append_own_message(send_id, ts, user_id=storage.LOCAL_USER_ID):
+    """Remember another message the app posted in this thread (instructions)."""
+    if not isinstance(ts, str) or not ts:
+        return
+    with storage.connection() as db:
+        row = db.execute('SELECT own_ts FROM slack_sends WHERE id=? AND owner_user_id=?', (send_id, user_id)).fetchone()
+        if row is None:
+            return
+        own = json.loads(row['own_ts'] or '[]')
+        if ts not in own:
+            own.append(ts)
+            db.execute('UPDATE slack_sends SET own_ts=? WHERE id=?', (json.dumps(own), send_id))
 
 
 def read_send(send_id, user_id=storage.LOCAL_USER_ID):

@@ -59,7 +59,9 @@ def initialize():
             id INTEGER PRIMARY KEY,
             channel TEXT NOT NULL, ts TEXT NOT NULL, sent_at TEXT NOT NULL,
             permalink TEXT, permalink_error TEXT,
-            permalink_checked_at TEXT
+            permalink_checked_at TEXT,
+            thread_ts TEXT,
+            own_ts TEXT NOT NULL DEFAULT '[]'
         );
         CREATE TABLE IF NOT EXISTS slack_send_cases (
             send_id INTEGER NOT NULL REFERENCES slack_sends(id) ON DELETE CASCADE,
@@ -67,6 +69,27 @@ def initialize():
             PRIMARY KEY(send_id, case_id)
         );
         CREATE INDEX IF NOT EXISTS slack_send_cases_case ON slack_send_cases(case_id);
+        CREATE TABLE IF NOT EXISTS slack_replies (
+            id INTEGER PRIMARY KEY,
+            send_id INTEGER NOT NULL REFERENCES slack_sends(id) ON DELETE CASCADE,
+            event_id TEXT,
+            channel TEXT NOT NULL,
+            thread_ts TEXT NOT NULL,
+            ts TEXT NOT NULL,
+            author_id TEXT,
+            author_name TEXT,
+            text TEXT NOT NULL DEFAULT '',
+            received_at TEXT NOT NULL,
+            UNIQUE(send_id, ts)
+        );
+        CREATE INDEX IF NOT EXISTS replies_send ON slack_replies(send_id);
+        CREATE INDEX IF NOT EXISTS replies_thread ON slack_replies(channel, thread_ts);
+        CREATE TABLE IF NOT EXISTS slack_events (
+            event_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            outcome TEXT NOT NULL
+        );
         CREATE TRIGGER IF NOT EXISTS delete_unlinked_slack_send
         AFTER DELETE ON slack_send_cases
         BEGIN
@@ -83,6 +106,8 @@ def initialize():
     migrate_accounts(DB_PATH, backup_existing)
     from app.single_set_migration import migrate as migrate_single_set
     migrate_single_set(DB_PATH, backup_existing)
+    from app.slack_replies_migration import migrate as migrate_slack_replies
+    migrate_slack_replies(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 

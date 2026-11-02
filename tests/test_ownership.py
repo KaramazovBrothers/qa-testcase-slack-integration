@@ -126,7 +126,7 @@ class OwnershipMigrationTests(unittest.TestCase):
             for name in ('case_sets','test_cases','slack_send_cases'):
                 self.assertEqual([tuple(r) for r in db.execute(f'SELECT {columns[name]} FROM {name}')],original[name])
             self.assertEqual(tuple(db.execute('SELECT id,channel,ts,sent_at,permalink,permalink_error,permalink_checked_at FROM slack_sends').fetchone()),original['slack_sends'][0])
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],4)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],5)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
         backups=list((self.path.parent/'backups').glob('*.pre-users.*.db'));self.assertEqual(len(backups),1)
         self.assertEqual(backups[0].stat().st_mode&0o777,0o600)
@@ -134,7 +134,8 @@ class OwnershipMigrationTests(unittest.TestCase):
             for name in original:self.assertEqual(backup.execute(f'SELECT * FROM {name}').fetchall(),original[name])
             self.assertNotIn('owner_user_id',[r[1] for r in backup.execute('PRAGMA table_info(tasks)')])
         storage.initialize()
-        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),4)
+        # v1 -> v5 runs one privacy-preserving backup per migration step.
+        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),5)
 
     def test_failed_integrity_check_rolls_back_upgrade(self):
         with sqlite3.connect(self.path) as db:

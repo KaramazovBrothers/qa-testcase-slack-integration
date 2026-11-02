@@ -1,11 +1,12 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from typing import Literal
 from app.mentions import load_region_mentions, normalize_mentions, format_mentions
@@ -16,7 +17,7 @@ from app.slack_routes import get_slack_route
 
 load_dotenv()
 
-from app import storage, slack_history
+from app import slack_events, storage, slack_history
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
@@ -161,6 +162,41 @@ async def slack_send(text: str = Form(...), user_id: CurrentUserId = storage.LOC
     return f'<p>Sent to Slack. ts={ts}</p><p><a href="/">Back</a></p>'
 
 
+@app.post("/slack/events", include_in_schema=False)
+async def slack_events_endpoint(request: Request) -> JSONResponse:
+    """Slack Events API receiver.
+
+    Public by design (Slack posts from its own servers), so the request is
+    authenticated by the signing secret instead of the local-access middleware.
+    Slack requires an answer within three seconds; the work here is a few
+    SQLite statements, so it stays synchronous and fast.
+    """
+    body = await request.body()
+    try:
+        slack_events.verify_signature(
+            os.getenv("SLACK_SIGNING_SECRET"),
+            request.headers.get("x-slack-request-timestamp"),
+            request.headers.get("x-slack-signature"),
+            body,
+        )
+    except slack_events.SignatureError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=401)
+
+    try:
+        payload = json.loads(body or b"{}")
+    except json.JSONDecodeError:
+        return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+
+    if payload.get("type") == "url_verification":
+        # Slack checks the URL before enabling subscriptions.
+        return JSONResponse({"challenge": payload.get("challenge", "")})
+
+    result = slack_events.handle_event(
+        payload, retry_num=request.headers.get("x-slack-retry-num"),
+    )
+    return JSONResponse({"ok": True, **result})
+
+
 @app.post("/slack/send-cases")
 async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
     user_token = require_slack_token(user_id)
@@ -203,16 +239,22 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
         posted_case = await post_message(user_token, channel_id, message, thread_ts=thread_ts)
         if case.case_ids:
             # Commit channel/ts before lookup (or the optional instructions reply).
-            send_id = slack_history.record_send(case.case_ids, posted_case, user_id)
+            # `thread_ts` is what Slack sends back on every reply in this thread.
+            send_id = slack_history.record_send(
+                case.case_ids, posted_case, user_id, thread_ts=thread_ts, own_ts=[thread_ts],
+            )
             delivery = await slack_history.resolve_permalink(user_token, send_id, user_id)
             deliveries.append({**delivery, "case_ids": list(dict.fromkeys(case.case_ids))})
 
         if case.comment.strip():
-            await post_message(
+            posted_note = await post_message(
                 user_token, channel_id,
                 f"Дополнительная информация:\n{case.comment.strip()}",
                 thread_ts=thread_ts,
             )
+            if case.case_ids:
+                # Our own note must not come back as a "reply".
+                slack_history.append_own_message(send_id, posted_note.get("ts"), user_id)
 
         thread_ts_values.append(thread_ts)
         sent += 1
