@@ -17,3 +17,11 @@ data/
 secrets/
 *.pem
 *.key
+
+# Agent instructions / handoff notes never go to GitHub
+*.md
+!README.md
+
+# Node tooling for the frontend build/tests
+node_modules/
+npm-debug.log*
