@@ -7,9 +7,14 @@
   "scripts": {
     "build": "python3 scripts/build_static.py",
     "build:check": "python3 scripts/build_static.py --check",
-    "test": "node --test tests/js/"
+    "test": "node --test tests/js/*.test.js",
+    "test:parity": "node tests/js/parity-with-legacy.mjs \"$LEGACY_GENERATOR\"",
+    "test:features": "node tests/js/feature-parity.mjs \"$LEGACY_GENERATOR\""
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
   }
 }
