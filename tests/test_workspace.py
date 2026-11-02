@@ -111,6 +111,12 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual(self.client.get(path,headers={'x-forwarded-host':'example.ngrok.app'}).status_code,403,path)
             self.assertEqual(self.client.get(path,headers={'origin':'https://evil.example'}).status_code,403,path)
             self.assertEqual(self.client.get(path,headers={'sec-fetch-site':'cross-site'}).status_code,403,path)
+        # Built generator assets served to the browser module.
+        for asset in ('generator.js','generator.css'):
+            response=self.client.get('/app/'+asset)
+            self.assertEqual(response.status_code,200,asset)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            self.assertGreater(len(response.content),1000,asset)
         self.assertEqual(self.client.get('/app/other').status_code,404)
         self.assertEqual(self.client.get('/slack/oauth/callback?code=x&state=invalid',headers={'host':'example.ngrok.app'}).status_code,400)
         with patch('app.local_access.LOCAL_HOSTS', {'127.0.0.1','localhost','::1'}):

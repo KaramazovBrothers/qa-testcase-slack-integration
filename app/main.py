@@ -40,11 +40,21 @@ async def workspace():
     return FileResponse(BASE_DIR / "static" / "workspace.html", media_type="text/html")
 
 
+# Built assets: `scripts/build_static.py` writes these from static-src/.
+ASSETS = {
+    "workspace.js": "application/javascript",
+    "workspace.css": "text/css",
+    "generator.js": "application/javascript",
+    "generator.css": "text/css",
+}
+
+
 @app.get("/app/{asset}", include_in_schema=False)
 async def workspace_asset(asset: str):
-    if asset not in {"workspace.js", "workspace.css"}:
+    media_type = ASSETS.get(asset)
+    if media_type is None:
         raise HTTPException(404, "Not found")
-    return FileResponse(BASE_DIR / "static" / asset)
+    return FileResponse(BASE_DIR / "static" / asset, media_type=media_type)
 
 
 @app.get("/api/slack-status")

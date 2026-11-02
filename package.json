@@ -1,0 +1,15 @@
+{
+  "name": "qa-testcase-slack-integration",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Frontend source of the QA testcase generator. Python serves the built output.",
+  "scripts": {
+    "build": "python3 scripts/build_static.py",
+    "build:check": "python3 scripts/build_static.py --check",
+    "test": "node --test tests/js/"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

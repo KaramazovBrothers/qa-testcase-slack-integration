@@ -1,0 +1,111 @@
+<div class="dg14" data-generator="v18">
+<header class="hero"><div><div class="eyebrow">PAYMENTS · QA</div><h1>Проверки депозитов и выплат у агрегатора</h1></div><nav class="languages" aria-label="Language"><button type="button" data-lang="ru">RU</button><button type="button" data-lang="en">EN</button><button type="button" data-lang="uk">UKR</button></nav></header>
+
+<div class="box">
+<h2>Инструкция</h2>
+<ol>
+<li>Выберите тип интеграции, лицензию и регион. Валюта и браузеры подставятся автоматически.</li>
+<li>Укажите возможности метода: изменение суммы, обязательный чек, OneClick, QR, таймер и кнопка отмены. Для QR выберите способ сканирования и поведение на мобильных устройствах.</li>
+<li>Заполните данные аккаунта, метода и суммы. Для COM заполните блок USD-пользователя.</li>
+<li>Нажмите <b>Сгенерировать кейсы</b> и проверьте результат. Если оставлены параметры-заглушки, замените их перед отправкой.</li>
+<li>Если в наборе есть WebView, приложите APK-файл.</li>
+</ol>
+</div>
+
+<div class="box">
+<h2>Настройки</h2>
+<div class="grid">
+<label>Тип интеграции<span class="select-wrap"><select data-id="integration"><option>HPP</option><option>H2H</option><option value="payout">Выплата</option></select></span></label>
+<label>Лицензия<span class="select-wrap"><select data-id="license"><option value="pinco">PINCO / WL</option><option value="com">COM</option><option value="zazino">Zazino</option></select></span></label>
+<label>Регион<span class="select-wrap"><select data-id="region"><option value="TR">Turkey</option><option value="AZ">Azerbaijan</option><option value="CL">Chile</option><option value="CA">Canada</option><option value="GT">Guatemala</option><option value="KZ">Kazakhstan</option><option value="BO">Bolivia</option><option value="UZ">Uzbekistan</option><option value="IN">India</option><option value="KG">Kyrgyzstan</option><option value="BD">Bangladesh</option><option value="MX">Mexico</option><option value="EC">Ecuador</option><option value="HN">Honduras</option><option value="TJ">Tajikistan</option><option value="NG">Nigeria</option><option value="KE">Kenya</option><option value="CG">Congo</option><option value="RU">Russia</option></select></span></label>
+<label data-id="walletWrap">Способ оплаты<span class="select-wrap"><select data-id="wallet"><option value="standard">Обычный метод</option><option value="apple">Apple Pay</option><option value="google">Google Pay</option></select></span></label>
+<label data-id="amountChangeWrap">Изменение суммы при оплате<span class="select-wrap"><select data-id="amountChange"><option value="yes">Доступно</option><option value="no">Недоступно</option></select></span></label>
+</div>
+<div data-id="walletSettings" class="hidden wallet-settings">
+<div class="grid">
+<label data-id="cardNetworkWrap">Карты для проверки<span class="select-wrap"><select data-id="cardNetwork"><option value="visa">Visa</option><option value="mastercard">Mastercard</option><option value="both">Visa и Mastercard</option></select></span></label>
+<label data-id="googleMethodModeWrap" class="hidden">Количество методов<span class="select-wrap"><select data-id="googleMethodMode"><option value="separate">Два метода</option><option value="shared">Один метод</option></select></span></label>
+</div>
+<p data-id="googleMethodHint" class="field-hint hidden">Google Pay: основной метод - браузеры и WebView, второй - нативное приложение.</p>
+<p class="field-hint">При выборе обеих карт: один кейс с Visa, остальные с Mastercard.</p>
+</div>
+<div data-id="regionInfo" class="note"></div>
+</div>
+
+<div class="box">
+<h2>Метод и суммы</h2>
+<div class="grid">
+<label>Site URL<input data-id="site" placeholder="SITE_URL"></label>
+<label>Payment method<input data-id="method" placeholder="PAYMENT_METHOD"></label>
+<label data-id="nativeMethodWrap" class="hidden">Метод Google Pay для нативного приложения<input data-id="nativeMethod" placeholder="NATIVE_PAYMENT_METHOD"></label>
+
+<label data-id="amountWrap">Сумма заявки<input data-id="amount" placeholder="AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="payoutAmountWrap" class="hidden">Сумма заявки для обычной выплаты<input data-id="payoutAmount" placeholder="PAYOUT_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="payoutFeeAmountWrap" class="hidden">Сумма заявки для выплаты с комиссией<input data-id="payoutFeeAmount" placeholder="PAYOUT_FEE_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<div data-id="payoutHint" class="note hidden" style="grid-column:1/-1">Сумма заявки для кейса с комиссией должна соответствовать условию: после снятия 25% комиссии сумма должна быть дробной, чтобы проверить нашу внутреннюю логику округления.<div data-id="payoutWarning" role="status"></div></div>
+<label data-id="overRequestWrap">Сумма заявки при переплате<input data-id="overRequest" placeholder="OVER_REQUEST_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="overWrap">Сумма фактической переплаты<input data-id="overPaid" placeholder="OVERPAY_ACTUAL_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="underRequestWrap">Сумма заявки при недоплате<input data-id="underRequest" placeholder="UNDER_REQUEST_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="underPaidWrap">Сумма фактической недоплаты<input data-id="underPaid" placeholder="UNDERPAY_ACTUAL_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+</div>
+</div>
+
+<div class="box">
+<h2>Пользователь</h2>
+<label>Сохранённый пользователь выбранного региона<select class="account-picker" data-account-kind="main"><option value="">Новый пользователь · ввести вручную</option></select></label>
+<p class="field-hint">Выберите пользователя или заполните свои данные. Новые данные сохранятся для текущего региона по кнопке «Сохранить».</p>
+<div class="grid"><label>Account ID<input data-id="account" placeholder="ACCOUNT_ID"></label>
+<label>Login<input data-id="login" placeholder="LOGIN"></label>
+<label>Password<input type="text" autocomplete="off" data-id="password" placeholder="PASSWORD"></label></div>
+<button type="button" class="secondary standalone-account-save">Сохранить пользователей региона</button><p class="account-save-status" role="status"></p>
+</div>
+
+<div data-id="comBox" class="box hidden">
+<h2>COM: отдельный USD-пользователь</h2>
+<p>Для COM обязательна проверка с отдельным пользователем, у которого валюта аккаунта USD. Проверка по возможности совмещается с другим кейсом.</p>
+<div class="grid">
+<label style="grid-column:1/-1">Сохранённый USD-пользователь выбранного региона<select class="account-picker" data-account-kind="usd"><option value="">Новый пользователь · ввести вручную</option></select></label>
+<label>Account ID USD<input data-id="usdAccount" placeholder="USD_ACCOUNT_ID"></label>
+<label>Login USD<input data-id="usdLogin" placeholder="USD_LOGIN"></label>
+<label>Password USD<input type="text" autocomplete="off" data-id="usdPassword" placeholder="USD_PASSWORD"></label>
+<label>Сумма заявки USD<input data-id="usdAmount" placeholder="USD_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="usdUnderRequestWrap">Сумма заявки при недоплате USD<input data-id="usdUnderRequest" placeholder="USD_UNDER_REQUEST_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="usdUnderWrap">Фактическая сумма недоплаты USD<input data-id="usdUnderPaid" placeholder="USD_UNDERPAY_ACTUAL_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="usdOverRequestWrap">Сумма заявки при переплате USD<input data-id="usdOverRequest" placeholder="USD_OVER_REQUEST_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+<label data-id="usdOverWrap">Фактическая сумма переплаты USD<input data-id="usdOverPaid" placeholder="USD_OVERPAY_ACTUAL_AMOUNT" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6"></label>
+</div>
+</div>
+
+<div class="box" data-id="depositFeatures">
+<h2>Дополнительные возможности метода</h2>
+<label class="check" data-id="returnToCashierWrap"><input data-id="returnToCashier" type="checkbox"> Кнопка возврата в кассу присутствует на главном экране провайдера</label>
+<label class="check"><input data-id="receipt" type="checkbox"> Подгрузка чека доступна и обязательна</label>
+<label class="check"><input data-id="oneClick" type="checkbox"> OneClick / переход по ссылке</label>
+<label class="check"><input data-id="qr" type="checkbox"> Оплата по QR</label>
+<div data-id="qrSettings" class="grid hidden">
+<label>Способ сканирования QR с компьютера<span class="select-wrap"><select data-id="qrScanner"><option value="camera">Обычная камера телефона</option><option value="app">Камера платёжного приложения</option><option value="both">Оба способа работают</option></select></span></label>
+<label>QR на мобильных устройствах<span class="select-wrap"><select data-id="qrMobile"><option value="button">Переход по кнопке в платёжное приложение</option><option value="download">Скачать QR и загрузить в платёжное приложение</option></select></span></label></div>
+<label class="check"><input data-id="timer" type="checkbox"> Таймер на странице провайдера присутствует</label>
+<label class="check"><input data-id="cancel" type="checkbox"> Кнопка отмены платежа присутствует</label>
+</div>
+
+<div class="box">
+<h2>Люди для тегов в Slack</h2>
+<p class="field-hint">Список выбранного региона применяется к каждому отправляемому кейсу. Пока используются заглушки.</p>
+<div data-id="mentionList"></div>
+<p data-id="mentionStatus" role="status"></p>
+<button type="button" class="secondary" data-id="addMention">Добавить человека</button>
+<button type="button" class="secondary" data-id="resetMentions">Восстановить список региона</button>
+</div>
+<div class="actions">
+<button data-id="generate" type="button">Сгенерировать кейсы</button>
+<button data-id="copyAll" type="button" class="secondary">Копировать всё</button>
+<button data-id="sendSlack" type="button">Отправить в Slack всё</button>
+<button data-id="sendSlackExceptFirst" type="button">Отправить все, кроме первого</button>
+</div>
+<div data-id="message" class="msg" role="status" aria-live="polite"></div>
+<h2>Сгенерированные кейсы: <span data-id="count">0</span></h2>
+
+<p class="info hidden" data-id="h2hNotice">Региональной команде можно передать первые три кейса. Чтобы сократить время проверки, остальные кейсы можно выполнить самостоятельно.</p>
+<div data-id="output"></div>
+</div>
