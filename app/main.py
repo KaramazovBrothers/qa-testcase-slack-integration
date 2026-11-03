@@ -1,8 +1,16 @@
 import json
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Optional
+
+if sys.version_info < (3, 10):  # noqa: UP036 - must run before the annotations below
+    raise RuntimeError(
+        "Python 3.10 or newer is required (found "
+        f"{sys.version_info.major}.{sys.version_info.minor}). "
+        "The code uses 'X | None' annotations, which older versions reject at import time."
+    )
 
 import httpx
 from dotenv import load_dotenv

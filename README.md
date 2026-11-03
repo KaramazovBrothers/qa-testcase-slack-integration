@@ -2,19 +2,25 @@
 
 Initial scaffold for Slack OAuth and test-case delivery from Confluence.
 
-## Local QA workspace (Python 3.11)
+## Requirements
+
+- **Python 3.10 or newer** (developed and tested on 3.11). The code uses
+  `X | None` annotations, so 3.9 fails at import time with `TypeError`.
+- Node.js 22 or newer — only to rebuild the frontend bundle or run its tests.
+  Running the app needs no Node.js: the built bundle is committed.
+
+## Clone and run
 
 ```sh
-cd /Users/d.karaliou/Documents/qa-testcase-slack-integration
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+cp .env.example .env          # then fill in the Slack credentials
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers
 ```
 
-Open **http://127.0.0.1:8000/app**. The existing standalone generator remains at
-`/generator`. No frontend build, Node.js, React or external database is needed.
-If port 8000 is already occupied by the old backend, stop that process first.
+The app starts without `.env`; you only need it to send messages to Slack. If port
+8000 is already occupied, stop the old process first.
 
 1. Start a draft or select a saved task. Jira ID and title are optional. If either
    is missing, Save assigns “Без названия N” with no Jira ID.
@@ -124,7 +130,6 @@ Writes are transactional and foreign keys enforce cascading deletion.
 ### Tests
 
 ```sh
-cd /Users/d.karaliou/Documents/qa-testcase-slack-integration
 .venv/bin/python -m unittest discover -s tests -v
 ```
 

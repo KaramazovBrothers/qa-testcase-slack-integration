@@ -1,3 +1,6 @@
+# Runtime only. Tests use the standard library's unittest:
+#   .venv/bin/python -m unittest discover -s tests -v
+# Python 3.10+ is required (see app/__init__.py); developed on 3.11.
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 httpx==0.28.1
