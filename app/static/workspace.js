@@ -92,9 +92,9 @@ async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{
  * and wallet data that only the generator page holds.
  */
 function caseHeader(){
-// Start from the block the generator produces right now, then leave room for
-// the steps. The tester edits the rest of the case by hand.
-const generated=gen&&gen.caseText?gen.caseText():'';
+// Only the request header: the generator also appends the step list and the
+// video request, which the tester writes by hand for a case added here.
+const generated=(gen&&gen.caseText?gen.caseText():'').split('\n\n')[0].trimEnd();
 return (generated||'Cashdesk payment request:')+'\n\n\n';
 }
 function addCase(){
