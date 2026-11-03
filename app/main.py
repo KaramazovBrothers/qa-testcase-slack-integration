@@ -110,8 +110,8 @@ class SendCasesRequest(BaseModel):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home() -> str:
-    connected = storage.get_slack_token(storage.LOCAL_USER_ID) is not None
+async def home(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
+    connected = storage.get_slack_token(user_id) is not None
     return f"""
     <html>
       <body style="font-family: sans-serif; max-width: 760px; margin: 40px auto;">
