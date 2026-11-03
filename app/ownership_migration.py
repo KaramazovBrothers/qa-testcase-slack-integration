@@ -3,7 +3,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 
 def backup_database(db_path, label='pre-users'):

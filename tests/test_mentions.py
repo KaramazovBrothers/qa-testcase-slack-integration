@@ -2,7 +2,7 @@ import unittest
 import asyncio
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
-from app import main
+from app import main, storage
 from app.mentions import format_mentions, load_region_mentions
 
 class MentionsTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class MentionsTests(unittest.TestCase):
         for operation in ['deposit','payout']:
             for users in [[], ['@testuser2'], ['U0123456789']]:
                 sender=AsyncMock(return_value={'ts':'1.1'})
-                with patch.object(main,'USER_TOKEN','test-only'), patch.object(main,'get_slack_route',return_value=('C_TEST',['U_MUST_NOT_RETURN'])), patch.object(main,'post_message',sender):
+                with patch.object(storage,'get_slack_token',return_value='test-only'), patch.object(main,'get_slack_route',return_value=('C_TEST',['U_MUST_NOT_RETURN'])), patch.object(main,'post_message',sender):
                     response=asyncio.run(main.slack_send_cases(main.SendCasesRequest(region='TR',cases=cases,operation=operation,mention_users=users)))
                 self.assertEqual(response['sent'],2)
                 calls=sender.call_args_list
@@ -33,14 +33,14 @@ class MentionsTests(unittest.TestCase):
     def test_individual_requests(self):
         sender = AsyncMock(return_value={'ts': '1.1'})
         cases = [{'title': 'Android Chrome', 'text': 'body', 'request_text': 'Custom first'}, {'title': 'Desktop Chrome', 'text': 'body', 'request_text': 'Custom second'}]
-        with patch.object(main, 'USER_TOKEN', 'test-only'), patch.object(main, 'get_slack_route', return_value=('C_TEST', [])), patch.object(main, 'post_message', sender):
+        with patch.object(storage, 'get_slack_token', return_value='test-only'), patch.object(main, 'get_slack_route', return_value=('C_TEST', [])), patch.object(main, 'post_message', sender):
             asyncio.run(main.slack_send_cases(main.SendCasesRequest(region='TR', cases=cases, mention_users=['@testuser1'])))
         parents = [c.args[2] for c in sender.call_args_list if not c.kwargs.get('thread_ts')]
         self.assertEqual(parents, ['@testuser1 Custom first', '@testuser1 Custom second'])
 
     def test_invalid_mentions_do_not_send(self):
         sender=AsyncMock()
-        with patch.object(main,'USER_TOKEN','test-only'), patch.object(main,'get_slack_route',return_value=('C_TEST',[])), patch.object(main,'post_message',sender):
+        with patch.object(storage,'get_slack_token',return_value='test-only'), patch.object(main,'get_slack_route',return_value=('C_TEST',[])), patch.object(main,'post_message',sender):
             with self.assertRaises(HTTPException) as raised:
                 asyncio.run(main.slack_send_cases(main.SendCasesRequest(region='TR',cases=[{'title':'test','text':'test'}],mention_users=['<!channel>'])))
         self.assertEqual(raised.exception.status_code,400)

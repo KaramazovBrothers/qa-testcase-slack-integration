@@ -128,7 +128,7 @@ class WorkspaceTests(unittest.TestCase):
         payload={key:saved[key] for key in ['region','operation','mention_users']}
         payload['cases']=[{key:saved['cases'][0][key] for key in ['title','text','comment','request_text']}]
         sender=AsyncMock(return_value={'ts':'123.1'})
-        with patch.object(main,'USER_TOKEN','fake-user-token'),patch.object(main,'get_slack_route',return_value=('C_TEST',[])),patch.object(main,'post_message',sender):
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'),patch.object(main,'get_slack_route',return_value=('C_TEST',[])),patch.object(main,'post_message',sender):
             response=self.client.post('/slack/send-cases',json=payload)
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(sender.await_count,3)
@@ -139,10 +139,12 @@ class WorkspaceTests(unittest.TestCase):
             url,state=build_authorize_url()
         query=parse_qs(urlsplit(url).query)
         self.assertEqual(query['user_scope'],['chat:write,channels:history,groups:history']);self.assertNotIn('scope',query)
-        main.OAUTH_STATES.add('test-state')
-        with patch.object(main,'USER_TOKEN',None),patch.object(main,'exchange_code',AsyncMock(return_value={'authed_user':{'access_token':'fake-user'}})):
+        from app import slack_oauth_state_migration
+        slack_oauth_state_migration.issue_state(storage.DB_PATH,storage.LOCAL_USER_ID,'test-state')
+        with patch.object(storage,'get_slack_token',return_value=None),patch.object(storage,'save_slack_token') as save, patch.object(main,'exchange_code',AsyncMock(return_value={'authed_user':{'access_token':'fake-user','id':'U_FAKE'},'team':{'id':'T_FAKE'},'scope':'chat:write'})):
             self.assertEqual(self.client.get('/slack/oauth/callback?state=test-state&code=fake').status_code,200)
-            self.assertEqual(main.USER_TOKEN,'fake-user')
+            save.assert_called_once_with(storage.LOCAL_USER_ID,'fake-user',slack_user_id='U_FAKE',team_id='T_FAKE',scopes='chat:write')
+            # State is single use: replaying the same callback must fail.
             self.assertEqual(self.client.get('/slack/oauth/callback?state=test-state&code=fake').status_code,400)
 
 

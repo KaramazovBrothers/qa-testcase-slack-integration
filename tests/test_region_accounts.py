@@ -36,7 +36,7 @@ class RegionAccountsTests(unittest.TestCase):
     def test_owner_and_region_access_isolation(self):
         a=self.save(self.with_cases())
         with storage.connection() as db:
-            db.execute("INSERT INTO users VALUES(2,'test','other','Other','now','now')")
+            db.execute("INSERT INTO users(id,auth_provider,auth_subject,display_name,created_at,updated_at) VALUES(2,'test','other','Other','now','now')")
         main.app.dependency_overrides[get_current_user_id]=lambda:2
         self.addCleanup(main.app.dependency_overrides.clear)
         self.assertEqual(self.client.get('/api/tasks/accounts?region=EC').json(),[])

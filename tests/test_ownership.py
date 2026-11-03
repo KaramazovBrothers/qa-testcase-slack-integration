@@ -19,7 +19,7 @@ class OwnershipAPITests(unittest.TestCase):
         main.app.dependency_overrides[get_current_user_id]=lambda:self.user_id
         self.addCleanup(main.app.dependency_overrides.clear)
         with storage.connection() as db:
-            db.execute("INSERT INTO users VALUES(2,'test','user-two','Second QA','now','now')")
+            db.execute("INSERT INTO users(id,auth_provider,auth_subject,display_name,created_at,updated_at) VALUES(2,'test','user-two','Second QA','now','now')")
         self.sender=self.enterContext(patch.object(main,'post_message',AsyncMock(side_effect=AssertionError('No network in ownership tests'))))
         self.task=self.create_task()
         self.path=f"/api/tasks/{self.task['id']}"
@@ -74,16 +74,17 @@ class OwnershipAPITests(unittest.TestCase):
         other=self.create_task()
         saved=self.client.post(f"/api/tasks/{other['id']}/sets",json={'name':'Other','region':'TR','settings':{},'cases':[{'title':'Other','text':'Other'}]}).json()
         self.user_id=1
-        with patch.object(main,'USER_TOKEN','fake'),patch.object(main,'get_slack_route',return_value=('C_TEST',[])):
+        with patch.object(storage,'get_slack_token',return_value='fake'),patch.object(main,'get_slack_route',return_value=('C_TEST',[])):
             response=self.client.post('/slack/send-cases',json={'region':'TR','mention_users':[],'cases':[{'title':'x','text':'y','case_ids':[saved['cases'][0]['id']]}]})
         self.assertEqual(response.status_code,404);self.sender.assert_not_awaited()
         with storage.connection() as db:
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute('INSERT INTO slack_send_cases VALUES(?,?)',(self.delivery,saved['cases'][0]['id']))
         self.user_id=2
-        with patch.object(main,'USER_TOKEN','fake-local-token'):
-            self.assertFalse(self.client.get('/api/slack-status').json()['connected'])
-            self.assertEqual(self.client.post('/slack/send-cases',json={'region':'TR','cases':[{'title':'x','text':'y'}]}).status_code,403)
+        storage.save_slack_token(1, 'fake-local-token')
+        self.assertFalse(self.client.get('/api/slack-status').json()['connected'])
+        # User 2 has no token of their own: connect-first (401), never a send.
+        self.assertEqual(self.client.post('/slack/send-cases',json={'region':'TR','cases':[{'title':'x','text':'y'}]}).status_code,401)
         self.sender.assert_not_awaited()
 
     def test_foreign_keys_and_no_implicit_owner_transfer(self):
@@ -126,7 +127,7 @@ class OwnershipMigrationTests(unittest.TestCase):
             for name in ('case_sets','test_cases','slack_send_cases'):
                 self.assertEqual([tuple(r) for r in db.execute(f'SELECT {columns[name]} FROM {name}')],original[name])
             self.assertEqual(tuple(db.execute('SELECT id,channel,ts,sent_at,permalink,permalink_error,permalink_checked_at FROM slack_sends').fetchone()),original['slack_sends'][0])
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],5)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
         backups=list((self.path.parent/'backups').glob('*.pre-users.*.db'));self.assertEqual(len(backups),1)
         self.assertEqual(backups[0].stat().st_mode&0o777,0o600)
@@ -134,8 +135,8 @@ class OwnershipMigrationTests(unittest.TestCase):
             for name in original:self.assertEqual(backup.execute(f'SELECT * FROM {name}').fetchall(),original[name])
             self.assertNotIn('owner_user_id',[r[1] for r in backup.execute('PRAGMA table_info(tasks)')])
         storage.initialize()
-        # v1 -> v5 runs one privacy-preserving backup per migration step.
-        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),5)
+        # Every migration step keeps one privacy-preserving backup (v1 -> v7).
+        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),7)
 
     def test_failed_integrity_check_rolls_back_upgrade(self):
         with sqlite3.connect(self.path) as db:

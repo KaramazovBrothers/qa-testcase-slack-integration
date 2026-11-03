@@ -73,7 +73,8 @@ class EventsEndpointTests(unittest.TestCase):
         self.enterContext(patch.object(storage, 'DB_PATH', Path(self.temp.name) / 'qa.db'))
         self.enterContext(patch('app.local_access.LOCAL_HOSTS', {'127.0.0.1', 'testclient'}))
         self.enterContext(patch.dict('os.environ', {'SLACK_SIGNING_SECRET': SECRET}))
-        self.enterContext(patch.object(main, 'USER_TOKEN', 'fake-user-token'))
+        storage.initialize()
+        storage.save_slack_token(storage.LOCAL_USER_ID, 'fake-user-token')
         self.enterContext(patch.object(main, 'get_slack_route', return_value=(CHANNEL, [])))
         self.sender = self.enterContext(patch.object(main, 'post_message', AsyncMock()))
         self.enterContext(patch.object(

@@ -1,9 +1,15 @@
-"""Local, transactional SQLite storage. No Slack tokens are persisted here."""
+"""Local, transactional SQLite storage for the QA workspace.
+
+The Slack user token is persisted (schema v6) so it survives restarts; the
+handle never leaves this process, and the database file is created 0600.
+"""
 import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 LOCAL_USER_ID = 1
 
@@ -108,6 +114,10 @@ def initialize():
     migrate_single_set(DB_PATH, backup_existing)
     from app.slack_replies_migration import migrate as migrate_slack_replies
     migrate_slack_replies(DB_PATH, backup_existing)
+    from app.slack_token_migration import migrate as migrate_slack_token
+    migrate_slack_token(DB_PATH, backup_existing)
+    from app.slack_oauth_state_migration import migrate as migrate_oauth_state
+    migrate_oauth_state(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 
@@ -116,3 +126,56 @@ def decode(row, *fields):
     for field in fields:
         result[field] = json.loads(result[field]) if result[field] is not None else None
     return result
+
+
+def save_slack_token(user_id: int, token: str, *, slack_user_id: Optional[str] = None,
+                     team_id: Optional[str] = None, scopes: Optional[str] = None) -> None:
+    """Persist one user's Slack token and who it belongs to on the Slack side.
+
+    Each person who authorizes the app gets their own row and their own token,
+    so every later request acts as that person rather than a shared account.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    with connection() as db:
+        db.execute(
+            """UPDATE users SET slack_token=?, slack_user_id=?, slack_team_id=?,
+                   slack_scopes=?, slack_token_issued_at=?, updated_at=?
+               WHERE id=?""",
+            (token, slack_user_id, team_id, scopes, now, now, user_id),
+        )
+
+
+def get_slack_token(user_id: int) -> Optional[str]:
+    with connection() as db:
+        row = db.execute("SELECT slack_token FROM users WHERE id=?", (user_id,)).fetchone()
+    return row["slack_token"] if row and row["slack_token"] else None
+
+
+def get_slack_identity(user_id: int) -> dict:
+    """Token plus Slack identifiers and scopes, for status and diagnostics."""
+    with connection() as db:
+        row = db.execute(
+            """SELECT slack_token, slack_user_id, slack_team_id, slack_scopes,
+                      slack_token_issued_at
+               FROM users WHERE id=?""",
+            (user_id,),
+        ).fetchone()
+    if row is None:
+        return {}
+    return {
+        "connected": bool(row["slack_token"]),
+        "slack_user_id": row["slack_user_id"],
+        "team_id": row["slack_team_id"],
+        "scopes": (row["slack_scopes"] or "").split(",") if row["slack_scopes"] else [],
+        "issued_at": row["slack_token_issued_at"],
+    }
+
+
+def clear_slack_token(user_id: int) -> None:
+    with connection() as db:
+        db.execute(
+            """UPDATE users SET slack_token=NULL, slack_user_id=NULL, slack_team_id=NULL,
+                   slack_scopes=NULL, slack_token_issued_at=NULL, updated_at=?
+               WHERE id=?""",
+            (datetime.now(timezone.utc).isoformat(), user_id),
+        )

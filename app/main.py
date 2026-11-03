@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Optional
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -17,7 +18,7 @@ from app.slack_routes import get_slack_route
 
 load_dotenv()
 
-from app import slack_events, storage, slack_history
+from app import slack_events, storage, slack_history, slack_oauth_state_migration
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
@@ -60,14 +61,36 @@ async def workspace_asset(asset: str):
 
 @app.get("/api/slack-status")
 async def slack_status(user_id: CurrentUserId = storage.LOCAL_USER_ID):
-    return {"connected": user_id == storage.LOCAL_USER_ID and USER_TOKEN is not None}
+    """Whether the current user personally connected Slack."""
+    return {"connected": storage.get_slack_token(user_id) is not None}
+
+
+@app.get("/api/slack-diagnostics")
+async def slack_diagnostics(user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    """Report the identity and scopes Slack actually granted this user."""
+    token = require_slack_token(user_id)
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(
+            "https://slack.com/api/auth.test",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        data = response.json()
+    stored = storage.get_slack_identity(user_id)
+    return {
+        "ok": data.get("ok"),
+        "team": data.get("team"),
+        "team_id": data.get("team_id"),
+        "user": data.get("user"),
+        "user_id": data.get("user_id"),
+        "stored_slack_user_id": stored.get("slack_user_id"),
+        "stored_scopes": stored.get("scopes"),
+        "issued_at": stored.get("issued_at"),
+        "granted_scopes": [s for s in (response.headers.get("x-oauth-scopes") or "").split(",") if s],
+        "error": data.get("error"),
+    }
 
 
 BASE_DIR = Path(__file__).resolve().parent
-
-# MVP only. Replace with persistent per-user storage before multi-user use.
-OAUTH_STATES: set[str] = set()
-USER_TOKEN: Optional[str] = None
 
 
 class GeneratedCase(BaseModel):
@@ -88,7 +111,7 @@ class SendCasesRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def home() -> str:
-    connected = USER_TOKEN is not None
+    connected = storage.get_slack_token(storage.LOCAL_USER_ID) is not None
     return f"""
     <html>
       <body style="font-family: sans-serif; max-width: 760px; margin: 40px auto;">
@@ -116,22 +139,24 @@ async def region_mentions() -> dict:
 
 
 @app.get("/slack/oauth/start")
-async def slack_oauth_start() -> RedirectResponse:
+async def slack_oauth_start(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> RedirectResponse:
+    """Begin authorization for the signed-in user.
+
+    The state is stored against that user, so the callback can only bind a
+    token to whoever started this specific flow.
+    """
     try:
         url, state = build_authorize_url()
     except KeyError as exc:
         raise HTTPException(status_code=500, detail=f"Missing env var: {exc.args[0]}") from exc
-    OAUTH_STATES.add(state)
+    slack_oauth_state_migration.issue_state(storage.DB_PATH, user_id, state)
     return RedirectResponse(url)
-
 
 @app.get("/slack/oauth/callback", response_class=HTMLResponse)
 async def slack_oauth_callback(code: str, state: str) -> str:
-    global USER_TOKEN
-
-    if state not in OAUTH_STATES:
-        raise HTTPException(status_code=400, detail="Invalid OAuth state")
-    OAUTH_STATES.discard(state)
+    user_id = slack_oauth_state_migration.consume_state(storage.DB_PATH, state)
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
     data = await exchange_code(code)
     authed_user = data.get("authed_user") or {}
@@ -139,16 +164,22 @@ async def slack_oauth_callback(code: str, state: str) -> str:
     if not token:
         raise HTTPException(status_code=500, detail="Slack did not return a user access token")
 
-    USER_TOKEN = token
+    # One token per user row: two people authorizing never share a token.
+    storage.save_slack_token(
+        user_id,
+        token,
+        slack_user_id=authed_user.get("id"),
+        team_id=(data.get("team") or {}).get("id"),
+        scopes=data.get("scope") or authed_user.get("scope"),
+    )
     return '<p>Slack connected. <a href="/">Back</a></p>'
 
 
 def require_slack_token(user_id: int = storage.LOCAL_USER_ID) -> str:
-    if user_id != storage.LOCAL_USER_ID:
-        raise HTTPException(status_code=403, detail="Per-user Slack OAuth is not configured yet")
-    if not USER_TOKEN:
+    token = storage.get_slack_token(user_id)
+    if not token:
         raise HTTPException(status_code=401, detail="Connect Slack first")
-    return USER_TOKEN
+    return token
 
 
 @app.post("/slack/send", response_class=HTMLResponse)

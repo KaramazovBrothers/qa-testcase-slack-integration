@@ -15,7 +15,8 @@ class SlackHistoryTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.enterContext(patch.object(storage, 'DB_PATH', Path(self.temp.name) / 'qa.db'))
         self.enterContext(patch('app.local_access.LOCAL_HOSTS', {'127.0.0.1','testclient'}))
-        self.enterContext(patch.object(main, 'USER_TOKEN', 'fake-user-token'))
+        storage.initialize()
+        storage.save_slack_token(storage.LOCAL_USER_ID, 'fake-user-token')
         self.enterContext(patch.object(main, 'get_slack_route', return_value=('C_REQUESTED', [])))
         self.sender = self.enterContext(patch.object(main, 'post_message', AsyncMock()))
         self.lookup = self.enterContext(patch.object(slack_history, 'get_permalink', AsyncMock(return_value='https://example.slack.com/archives/C_ACTUAL/p1700000000000002')))
@@ -134,7 +135,7 @@ class SlackHistoryTests(unittest.TestCase):
         self.send();item=self.history()[0];self.sender.reset_mock();self.lookup.reset_mock()
         self.assertEqual(self.retry(item['id'],case_id=self.b).status_code,404)
         self.assertEqual(self.retry(item['id'],path='/api/tasks/999/sets/'+str(self.saved['id'])).status_code,404)
-        with patch.object(main,'USER_TOKEN',None):
+        with patch.object(storage,'get_slack_token',return_value=None):
             self.assertEqual(self.retry(item['id']).status_code,401)
         self.lookup.assert_not_awaited();self.sender.assert_not_awaited()
         path=f"{self.path}/cases/{self.a}/slack-sends/{item['id']}/permalink"
