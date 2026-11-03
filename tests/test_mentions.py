@@ -3,7 +3,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 from app import main, storage
-from app.mentions import format_mentions, load_region_mentions
+from app.mentions import format_mentions, load_region_mentions, normalize_mentions
 
 class MentionsTests(unittest.TestCase):
     def test_config_and_format(self):
@@ -11,6 +11,31 @@ class MentionsTests(unittest.TestCase):
         self.assertEqual(format_mentions(['@testuser1','U0123456789','@testuser1']), '@testuser1 <@U0123456789>')
         with self.assertRaises(ValueError):
             format_mentions(['<!channel>'])
+
+    def test_display_name_error_explains_how_to_get_member_id(self):
+        """A Slack display name has spaces, so it can never notify a person."""
+        with self.assertRaises(ValueError) as caught:
+            normalize_mentions(['@Ilyos Ismoilov'])
+        message = str(caught.exception)
+        self.assertIn('@Ilyos Ismoilov', message)
+        self.assertIn('display name', message)
+        self.assertIn('Copy member ID', message)
+
+    def test_invalid_mention_names_the_offending_value(self):
+        with self.assertRaises(ValueError) as caught:
+            normalize_mentions(['bad!char'])
+        self.assertIn('bad!char', str(caught.exception))
+
+    def test_member_id_and_username_are_accepted(self):
+        self.assertEqual(normalize_mentions(['U0123456789']), ['U0123456789'])
+        self.assertEqual(normalize_mentions(['@ilyos']), ['ilyos'])
+        self.assertEqual(normalize_mentions(['@ilyos.ismoilov']), ['ilyos.ismoilov'])
+
+    def test_broadcast_groups_are_rejected(self):
+        for value in ['@here', '@channel', '@everyone']:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    normalize_mentions([value])
 
     def test_send_overrides_and_empty_list(self):
         self.assertEqual(asyncio.run(main.region_mentions())['TR'], ['@testuser1','@testuser2'])
