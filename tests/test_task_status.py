@@ -83,6 +83,27 @@ class TaskStatusTests(unittest.TestCase):
     def test_toggle_requires_an_existing_task(self):
         self.assertEqual(self.client.post('/api/tasks/999/status').status_code, 404)
 
+    def test_done_tasks_sort_below_active_ones(self):
+        first = self.create('QA-10')
+        second = self.create('QA-11')
+        third = self.create('QA-12')
+        # Closing the newest task must not lift it above the active ones.
+        self.client.post(f"/api/tasks/{third['id']}/status")
+
+        order = [t['id'] for t in self.client.get('/api/tasks').json()]
+        self.assertEqual(order, [second['id'], first['id'], third['id']])
+
+    def test_recently_closed_done_task_leads_the_done_block(self):
+        old = self.create('QA-20')
+        new = self.create('QA-21')
+        marker = self.create('QA-22')
+        # Close the older task last so it becomes the most recently updated.
+        self.client.post(f"/api/tasks/{new['id']}/status")
+        self.client.post(f"/api/tasks/{old['id']}/status")
+
+        order = [t['id'] for t in self.client.get('/api/tasks').json()]
+        self.assertEqual(order, [marker['id'], old['id'], new['id']])
+
 
 if __name__ == '__main__':
     unittest.main()

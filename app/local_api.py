@@ -196,7 +196,11 @@ def list_tasks(q: str = Query(default='', max_length=80),
         return [dict(r) for r in db.execute(
             "SELECT id,jira_id,title,status,created_at,updated_at FROM tasks "
             "WHERE owner_user_id=? AND (instr(upper(coalesce(jira_id,'')),upper(?))>0 OR instr(upper(title),upper(?))>0) "
-            "AND (?=0 OR status='active') ORDER BY updated_at DESC,id DESC",
+            "AND (?=0 OR status='active') "
+            # Active work first; done tasks sink below it. Inside each group the
+            # most recently touched task leads, so a task that was just closed
+            # appears at the top of the done block.
+            "ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, updated_at DESC, id DESC",
             (user_id, q.strip(), q.strip(), 1 if active else 0))]
 
 
