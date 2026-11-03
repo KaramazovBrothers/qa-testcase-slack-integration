@@ -31,6 +31,7 @@ class Model(BaseModel):
 class TaskInput(Model):
     jira_id: str | None = Field(default=None, max_length=80)
     title: str = Field(default='', max_length=300)
+    status: Literal['active', 'done'] = 'active'
 
     @field_validator('jira_id')
     @classmethod
@@ -197,9 +198,16 @@ def get_set(db, task_id, set_id, user_id=storage.LOCAL_USER_ID):
 
 
 @router.get('')
-def list_tasks(q: str = Query(default='', max_length=80), user_id: CurrentUserId = storage.LOCAL_USER_ID):
+def list_tasks(q: str = Query(default='', max_length=80),
+               active: bool = Query(default=False),
+               user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    # `active=true` is the sidebar checkbox: finished tasks stay out of the way.
     with storage.connection() as db:
-        return [dict(r) for r in db.execute("SELECT id,jira_id,title,created_at,updated_at FROM tasks WHERE owner_user_id=? AND (instr(upper(coalesce(jira_id,'')),upper(?))>0 OR instr(upper(title),upper(?))>0) ORDER BY updated_at DESC,id DESC", (user_id,q.strip(),q.strip()))]
+        return [dict(r) for r in db.execute(
+            "SELECT id,jira_id,title,status,created_at,updated_at FROM tasks "
+            "WHERE owner_user_id=? AND (instr(upper(coalesce(jira_id,'')),upper(?))>0 OR instr(upper(title),upper(?))>0) "
+            "AND (?=0 OR status='active') ORDER BY updated_at DESC,id DESC",
+            (user_id, q.strip(), q.strip(), 1 if active else 0))]
 
 
 @router.post('', status_code=201)
@@ -209,7 +217,7 @@ def create_task(payload: TaskInput, user_id: CurrentUserId = storage.LOCAL_USER_
             db.execute('BEGIN IMMEDIATE')
             stamp = now()
             jira_id,title=task_identity(db,payload,user_id)
-            cursor = db.execute('INSERT INTO tasks(owner_user_id,jira_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', (user_id,jira_id,title,stamp,stamp))
+            cursor = db.execute('INSERT INTO tasks(owner_user_id,jira_id,title,status,created_at,updated_at) VALUES(?,?,?,?,?,?)', (user_id,jira_id,title,payload.status,stamp,stamp))
             return storage.decode(require_task(db,cursor.lastrowid,user_id),'settings')
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, 'Jira ID already exists') from exc
@@ -230,7 +238,9 @@ def update_task(task_id: int, payload: TaskInput, user_id: CurrentUserId = stora
             db.execute('BEGIN IMMEDIATE')
             existing=require_task(db,task_id,user_id)
             jira_id,title=task_identity(db,payload,user_id,existing)
-            db.execute('UPDATE tasks SET jira_id=?,title=?,updated_at=? WHERE id=?', (jira_id,title,now(),task_id))
+            # The editor renames a task; only an explicit status change moves it.
+            status = payload.status if 'status' in payload.model_fields_set else existing['status']
+            db.execute('UPDATE tasks SET jira_id=?,title=?,status=?,updated_at=? WHERE id=?', (jira_id,title,status,now(),task_id))
             return storage.decode(require_task(db,task_id,user_id),'settings')
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, 'Jira ID already exists') from exc
@@ -242,6 +252,17 @@ def delete_task(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
         require_task(db,task_id,user_id)
         db.execute('DELETE FROM tasks WHERE id=?',(task_id,))
     return Response(status_code=204)
+
+
+@router.post('/{task_id}/status')
+def toggle_task_status(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    """Flip a task between active and done and return the new state."""
+    with storage.connection() as db:
+        db.execute('BEGIN IMMEDIATE')
+        current = require_task(db,task_id,user_id)['status']
+        status = 'done' if current == 'active' else 'active'
+        db.execute('UPDATE tasks SET status=?,updated_at=? WHERE id=?',(status,now(),task_id))
+        return {'id': task_id, 'status': status}
 
 
 @router.get('/{task_id}/settings')

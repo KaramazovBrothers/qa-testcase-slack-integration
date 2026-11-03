@@ -36,8 +36,10 @@ def initialize():
     os.close(fd)
     DB_PATH.chmod(0o600)
     with connection() as db:
-        from app.ownership_migration import SCHEMA_VERSION
-        if db.execute('PRAGMA user_version').fetchone()[0] > SCHEMA_VERSION:
+        # Guard against a database written by a newer build, not against the
+        # version this code is about to migrate to.
+        from app.ownership_migration import LATEST_SCHEMA_VERSION
+        if db.execute('PRAGMA user_version').fetchone()[0] > LATEST_SCHEMA_VERSION:
             raise RuntimeError('Database schema is newer than this application')
         db.executescript('''
         CREATE TABLE IF NOT EXISTS tasks (
@@ -120,6 +122,8 @@ def initialize():
     migrate_oauth_state(DB_PATH, backup_existing)
     from app.slack_people_migration import migrate as migrate_slack_people
     migrate_slack_people(DB_PATH, backup_existing)
+    from app.task_status_migration import migrate as migrate_task_status
+    migrate_task_status(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 

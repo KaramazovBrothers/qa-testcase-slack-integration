@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 def migrate(path: Path, backup_existing) -> None:
@@ -17,9 +18,9 @@ def migrate(path: Path, backup_existing) -> None:
     db.row_factory = sqlite3.Row
     try:
         current = db.execute("PRAGMA user_version").fetchone()[0]
-        if current > SCHEMA_VERSION:
+        if current > LATEST_SCHEMA_VERSION:
             raise RuntimeError(
-                f"Database schema v{current} is newer than this code (v{SCHEMA_VERSION})"
+                f"Database schema v{current} is newer than this code (v{LATEST_SCHEMA_VERSION})"
             )
 
         columns = {row["name"] for row in db.execute("PRAGMA table_info(slack_people)")}

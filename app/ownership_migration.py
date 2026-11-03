@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 def backup_database(db_path, label='pre-users'):
@@ -31,7 +32,7 @@ def migrate(db_path, backup_existing):
         db.execute('PRAGMA foreign_keys=OFF')
         db.execute('BEGIN IMMEDIATE')
         version = db.execute('PRAGMA user_version').fetchone()[0]
-        if version > SCHEMA_VERSION:
+        if version > LATEST_SCHEMA_VERSION:
             raise RuntimeError('Database schema is newer than this application')
         needs_tasks = 'owner_user_id' not in {r[1] for r in db.execute('PRAGMA table_info(tasks)')}
         if needs_tasks and backup_existing:
