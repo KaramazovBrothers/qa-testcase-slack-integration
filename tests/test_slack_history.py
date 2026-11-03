@@ -67,6 +67,40 @@ class SlackHistoryTests(unittest.TestCase):
         self.assertEqual(calls[2].kwargs,{'thread_ts':'1700000000.000001'})
         self.assertEqual(self.history(1),[])
 
+    def save_payload(self, removed_a=(), removed_b=()):
+        """Minimal /api/tasks/save body for the task created in setUp."""
+        def case(case_id, title, text, removed):
+            return {'id': case_id, 'client_key': 'k' + str(case_id), 'title': title,
+                    'text': text, 'comment': '', 'request_text': '', 'status': 'Not tested',
+                    'qa_comment': '', 'bug_links': [], 'removed_slack_sends': list(removed)}
+        return {'task_id': self.task['id'], 'client_key': 'draft-1',
+                'jira_id': 'QA-11', 'title': 'Links',
+                'settings': {'fields': {'region': 'TR', 'integration': 'HPP'},
+                             'mention_edits': {'TR': []}},
+                'set_id': self.saved['id'],
+                'cases': [case(self.a, 'A', 'Body A', removed_a),
+                          case(self.b, 'B', 'Body B', removed_b)]}
+
+    def test_saved_removal_drops_the_delivery(self):
+        self.send()
+        send_id = self.history()[0]['id']
+        response = self.client.post('/api/tasks/save', json=self.save_payload(removed_a=[send_id]))
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.history(), [])
+
+    def test_removal_needs_the_save_button(self):
+        self.send()
+        send_id = self.history()[0]['id']
+        # The UI only records intent locally; nothing is deleted until Save.
+        self.assertEqual([row['id'] for row in self.history()], [send_id])
+
+    def test_removal_of_a_foreign_send_is_rejected(self):
+        self.send()
+        foreign = self.history()[0]['id']
+        response = self.client.post('/api/tasks/save', json=self.save_payload(removed_b=[foreign]))
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(len(self.history()), 1)
+
     def test_lookup_failure_commits_first_and_retry_never_posts(self):
         async def fail(*args):
             pending=self.history()[0]

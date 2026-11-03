@@ -92,6 +92,9 @@ class SavedCase(CaseUpdate):
     client_key: str = Field(min_length=1,max_length=100)
     title: str = Field(min_length=1,max_length=4000)
     text: str = Field(min_length=1,max_length=100000)
+    # Slack deliveries the tester removed from the UI. They are dropped only
+    # when the case itself is saved, so a discarded edit changes nothing.
+    removed_slack_sends: list[int] = Field(default_factory=list,max_length=200)
 
 
 class WorkspaceSave(TaskInput):
@@ -173,6 +176,12 @@ def save_workspace(payload: WorkspaceSave, response: Response, user_id: CurrentU
                     else:
                         case_id=db.execute('INSERT INTO test_cases(position,title,text,comment,request_text,status,qa_comment,bug_links,updated_at,test_account_id,client_key,set_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(*values,set_id)).lastrowid
                     kept.append(case_id)
+                    for send_id in case.removed_slack_sends:
+                        # The link must belong to this case; a stray ID from
+                        # another case must never delete that case's history.
+                        if not db.execute('SELECT 1 FROM slack_send_cases WHERE send_id=? AND case_id=?',(send_id,case_id)).fetchone():
+                            raise HTTPException(404,'Slack send not found for this case')
+                        db.execute('DELETE FROM slack_send_cases WHERE send_id=? AND case_id=?',(send_id,case_id))
                 for old in db.execute('SELECT id FROM test_cases WHERE set_id=?',(set_id,)).fetchall():
                     if old['id'] not in kept:db.execute('DELETE FROM test_cases WHERE id=?',(old['id'],))
             result=storage.decode(require_task(db,task_id,user_id),'settings')

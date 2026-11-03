@@ -22,3 +22,4 @@
 .slack-replies p{margin:4px 0;font-size:13px}
 .check{flex-direction:row;align-items:center;gap:8px;font-weight:500}.check input{width:auto}.task em{margin-left:6px;padding:1px 6px;border-radius:5px;background:#e7edf5;color:#5a6c83;font:600 11px/1.6 inherit;font-style:normal}.task[data-status=done] em{background:#e8f3ec;color:#31704d}
 #toggleStatus.done{background:#2c9a67;color:#fff;border-color:#2c9a67}#toggleStatus.done:hover{background:#268059;border-color:#268059}
+.slack-history button.danger{margin-left:10px;padding:4px 8px;font-size:12px}
