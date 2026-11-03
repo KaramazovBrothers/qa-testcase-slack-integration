@@ -1,5 +1,9 @@
-import { state } from './store.js';
+import { state, $, val } from './store.js';
 import { generateCases } from './cases/index.js';
+import { header } from './cases/generate.js';
+import { localise } from './translations/translations.js';
+import { platformList, currencyFor, currentRegion } from './cases/platforms.js';
+import { walletName } from './cases/licenses.js';
 import { renderMentions, loadMentions, addMention, resetMentions, mentionPayload } from './ui/mentions.js';
 import { cacheStaticNodes, refreshLanguage } from './ui/language.js';
 import {
@@ -81,6 +85,31 @@ export function installWorkspaceApi() {
         region: state.root.querySelector('[data-id="region"]').value,
         ...mentionPayload(),
       };
+    },
+    /**
+     * Text of the case the generator would produce right now.
+     *
+     * A hand-written case must start from exactly this block, otherwise the
+     * workspace would have to re-implement currency and platform tables that
+     * only this module knows. This mirrors the inner half of the generate
+     * button, so the text matches what a full generation produces.
+     */
+    caseText() {
+      try {
+        state.protectedValues = [];
+        state.protectValues = true;
+        let cases;
+        try {
+          cases = generateCases();
+        } finally {
+          state.protectValues = false;
+        }
+        const first = cases[0];
+        if (!first) return '';
+        return localise(first.text, state.protectedValues);
+      } catch {
+        return '';
+      }
     },
   };
 }

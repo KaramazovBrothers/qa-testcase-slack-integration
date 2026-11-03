@@ -21,7 +21,7 @@ function mark(){notice('Есть изменения · нажмите «Сохр
 function canLeave(){return !dirty()||confirm('Есть несохранённые изменения. Продолжить без сохранения?');}
 async function action(fn){if(busy)return;busy=true;$('workspace').inert=true;try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').inert=false;}}
 async function listTasks(){const revision=++searchRevision,items=await api('/api/tasks?q='+encodeURIComponent($('search').value));if(revision!==searchRevision)return;$('tasks').replaceChildren();for(const item of items){const b=button('',()=>action(()=>selectTask(item.id)),'task');b.dataset.id=item.id;b.setAttribute('aria-current',String(task?.id===item.id));if(item.jira_id)b.append(el('strong',item.jira_id));b.append(el('span',item.title));$('tasks').append(b);}}
-function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;if(mentionDefaults&&typeof renderMentions==='function')renderMentions();renderCases();}
+function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;renderMentions();renderCases();}
 async function listSets(){return task?await api(`/api/tasks/${task.id}/sets`):[];}
 function showTask(){ $('jiraId').value=task?.jira_id||'';$('taskTitle').value=task?.title||'';$('deleteTask').hidden=!task;$('dates').textContent=task?`Изменена ${date(task.updated_at)}`:'Черновик · ещё не сохранён';gen.lockRegion(!!task?.region);}
 async function selectTask(id){if(!canLeave())return;task=await api(`/api/tasks/${id}`);draftKey=task.client_key||uuid();accounts=task.test_accounts||[];deletedAccountIds=[];gen.restore(task.settings);restoreMentions(task.settings);gen.setAccountOptions(accounts);showTask();const items=await listSets();adoptSet(items.length?await api(`/api/tasks/${id}/sets/${items[0].id}`):null);renderAccounts();baseline=signature();await listTasks();notice(`Открыта ${task.jira_id||task.title}`);}
@@ -86,8 +86,26 @@ function renderHistory(record,host){host.replaceChildren();for(const delivery of
 function renderReplies(record,host){const replies=record.slack_replies||[];if(!replies.length)return;const box=el('div',undefined,'slack-replies');box.append(el('strong','Ответы в треде · '+replies.length));for(const reply of replies){const row=el('p',date(reply.received_at)+' · '+(reply.author_name||reply.author_id||'Slack')+': ');row.append(el('span',reply.text||'(без текста)'));box.append(row);}host.append(box);}
 async function refreshHistory(){if(!currentSet)return;const result=await api(setPath());for(const c of cases||[]){c.slack_sends=result.cases.find(r=>r.id===c.id)?.slack_sends||[];const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}await refreshReplies();}
 async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{c.slack_replies=await api(`${setPath()}/cases/${c.id}/slack-replies`);const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}catch(e){}}}
+/**
+ * Header of a manually added case, built by the generator from its own tables.
+ * The workspace cannot compute currency or platform: they come from the region
+ * and wallet data that only the generator page holds.
+ */
+function caseHeader(){
+// Start from the block the generator produces right now, then leave room for
+// the steps. The tester edits the rest of the case by hand.
+const generated=gen&&gen.caseText?gen.caseText():'';
+return (generated||'Cashdesk payment request:')+'\n\n\n';
+}
+function addCase(){
+if(!gen)return;
+const record={client_key:uuid(),title:'Новый кейс',text:caseHeader(),comment:'',request_text:'',status:'Not tested',qa_comment:'',bug_links:[],test_account_id:null};
+cases=[...(cases||[]),record];
+renderCases();mark();
+const cards=$('cases').children;const node=cards[cards.length-1];if(node){node.scrollIntoView({block:'center'});const heading=node.querySelector('h3');if(heading)heading.focus();}
+notice('Кейс добавлен. Текст взят из генератора; шаги и остальное заполните вручную.');}
 function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:mentionValues(),cases:selected.map(({id,title,text,comment,request_text})=>({case_ids:[id],title,text,comment,request_text}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
-$('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
+$('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('addCase').onclick=()=>addCase();$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
 $('addMention').onclick=()=>{const region=mentionRegion();if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[];mentionEdits[region].push('');renderMentions();mark();};
 $('resetMentions').onclick=()=>{const region=mentionRegion();mentionEdits[region]=[...(directory[region]||[])];renderMentions();mark();};
 $('deleteTask').onclick=()=>action(async()=>{if(!confirm('Удалить задачу со всеми кейсами без возможности восстановления?'))return;await api(`/api/tasks/${task.id}`,'DELETE');await newDraft(false);});

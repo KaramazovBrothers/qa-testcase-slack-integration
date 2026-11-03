@@ -1,5 +1,5 @@
 import { $, checked, state } from '../store.js';
-import { translate } from '../translations/translations.js';
+import { translate, localise } from '../translations/translations.js';
 import { amountInputIds, generateCases, validAmountInput } from '../cases/index.js';
 import { renderCases, caseCopyText, copyText } from '../cases/render.js';
 import { updatePayoutAmount, updateUI } from '../cases/payout.js';
@@ -7,10 +7,6 @@ import { mentionPayload, renderMentions, addMention, resetMentions } from './men
 import { refreshLanguage } from './language.js';
 import { loadAccounts, setAccountOptions, bindAccountPickers, saveStandaloneAccounts } from './accounts.js';
 
-/** Replace the placeholder tokens with the real operator-entered values. */
-function localise(text, protectedValues) {
-  return translate(text).replace(/⟦VALUE(\d+)⟧/g, (_, i) => protectedValues[Number(i)]);
-}
 
 /** Generate cases from the current form, honouring the workspace gates. */
 export function generate() {

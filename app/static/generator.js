@@ -109,6 +109,11 @@ function translate(text){
  return text.replace(new RegExp(extraPhrasePattern+'|'+paymentTitleFeatures.map(x=>x[1]).join('|')+'|QR: оплата по сохранённым платёжным данным|, установить PWA приложение через меню браузера и открыть установленное PWA приложение\\.|PWA приложение|'+phraseRE.source,'g'),x=>translations[x][index]);
 }
 
+/** Replace the placeholder tokens with the real operator-entered values. */
+function localise(text, protectedValues) {
+  return translate(text).replace(/⟦VALUE(\d+)⟧/g, (_, i) => protectedValues[Number(i)]);
+}
+
 'use strict';
 
 // ---- generator/cases/regions.js --------------------------------------
@@ -1255,11 +1260,6 @@ function syncAccountFields(previous, next) {
 }
 
 // ---- generator/ui/events.js ------------------------------------------
-/** Replace the placeholder tokens with the real operator-entered values. */
-function localise(text, protectedValues) {
-  return translate(text).replace(/⟦VALUE(\d+)⟧/g, (_, i) => protectedValues[Number(i)]);
-}
-
 /** Generate cases from the current form, honouring the workspace gates. */
 function generate() {
   if (state.workspaceHooks?.beforeGenerate && !state.workspaceHooks.beforeGenerate()) return;
@@ -1521,6 +1521,31 @@ function installWorkspaceApi() {
         region: state.root.querySelector('[data-id="region"]').value,
         ...mentionPayload(),
       };
+    },
+    /**
+     * Text of the case the generator would produce right now.
+     *
+     * A hand-written case must start from exactly this block, otherwise the
+     * workspace would have to re-implement currency and platform tables that
+     * only this module knows. This mirrors the inner half of the generate
+     * button, so the text matches what a full generation produces.
+     */
+    caseText() {
+      try {
+        state.protectedValues = [];
+        state.protectValues = true;
+        let cases;
+        try {
+          cases = generateCases();
+        } finally {
+          state.protectValues = false;
+        }
+        const first = cases[0];
+        if (!first) return '';
+        return localise(first.text, state.protectedValues);
+      } catch {
+        return '';
+      }
     },
   };
 }

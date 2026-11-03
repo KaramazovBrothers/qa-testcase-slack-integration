@@ -53,4 +53,9 @@ export function translate(text){
  return text.replace(new RegExp(extraPhrasePattern+'|'+paymentTitleFeatures.map(x=>x[1]).join('|')+'|QR: оплата по сохранённым платёжным данным|, установить PWA приложение через меню браузера и открыть установленное PWA приложение\\.|PWA приложение|'+phraseRE.source,'g'),x=>translations[x][index]);
 }
 
+/** Replace the placeholder tokens with the real operator-entered values. */
+export function localise(text, protectedValues) {
+  return translate(text).replace(/⟦VALUE(\d+)⟧/g, (_, i) => protectedValues[Number(i)]);
+}
+
 'use strict';
