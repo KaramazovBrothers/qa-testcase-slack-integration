@@ -32,7 +32,13 @@ def extract_member_id(value: str) -> str | None:
 
 
 def normalize_mentions(values: list[str]) -> list[str]:
-    """Accept a member ID, a profile link, <@U…> or a username; store the ID part."""
+    """Accept a member ID, a profile link, <@U…> or a username.
+
+    Anything else is passed through untouched: a display name such as
+    "@Dzmitryi Karaliou" cannot notify anyone, but rejecting it made saving
+    impossible and hid the real problem. `format_mentions` still renders IDs as
+    `<@U…>` and everything else as plain text.
+    """
     result = []
     for value in values:
         value = value.strip()
@@ -45,24 +51,17 @@ def normalize_mentions(values: list[str]) -> list[str]:
                 result.append(member_id)
             continue
 
-        if not USERNAME.fullmatch(value):
-            if " " in value:
-                raise ValueError(
-                    f"'{value}' looks like a Slack display name or a link we do not "
-                    "recognise. Paste the profile link (Copy link on the person in "
-                    "Slack), the member ID (U0123456789) or a username without spaces."
-                )
-            raise ValueError(
-                f"'{value}' is not a valid mention. Paste a Slack profile link, a "
-                "member ID (U0123456789) or a username without spaces."
-            )
-
         if value.lower() in {"@here", "@channel", "@everyone"}:
             raise ValueError("Specify individual people, not @here, @channel or @everyone")
+        # Slack's raw broadcast syntax reaches everyone in the channel.
+        if value.strip().lower() in {"<!here>", "<!channel>", "<!everyone>",
+                                     "<!here|here>", "<!channel|channel>",
+                                     "<!everyone|everyone>"}:
+            raise ValueError("Specify individual people, not a channel-wide broadcast")
 
-        handle = value.lstrip("@")
-        if handle not in result:
-            result.append(handle)
+        # Unknown shapes are kept verbatim so the workspace keeps working.
+        if value not in result:
+            result.append(value)
     return result
 
 
@@ -77,4 +76,18 @@ def load_region_mentions() -> dict[str, list[str]]:
 
 
 def format_mentions(values: list[str]) -> str:
-    return " ".join(f"<@{value}>" if re.fullmatch(r"[UW][A-Z0-9]+", value) else f"@{value}" for value in normalize_mentions(values))
+    """Render mentions for `chat.postMessage`.
+
+    A member id becomes `<@U…>` so Slack notifies the person. Usernames lose
+    their leading `@` before being re-prefixed, and anything else (a display
+    name kept verbatim by `normalize_mentions`) is passed through as text.
+    """
+    parts = []
+    for value in normalize_mentions(values):
+        if MEMBER_ID.fullmatch(value):
+            parts.append(f"<@{value}>")
+        elif USERNAME.fullmatch(value):
+            parts.append("@" + value.lstrip("@"))
+        else:
+            parts.append(value)
+    return " ".join(parts)

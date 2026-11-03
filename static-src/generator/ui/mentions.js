@@ -33,6 +33,7 @@ export function renderMentions() {
   refreshCaseTags();
   const region = regionKey();
   const list = $('mentionList');
+  if (!list) return;
   list.textContent = '';
   if (!state.mentionDefaults) return;
   if (!Object.hasOwn(state.mentionEdits, region)) {
@@ -75,9 +76,12 @@ export function renderMentions() {
   });
 
   refreshCaseTags();
-  $('mentionStatus').textContent = state.mentionEdits[region].length
-    ? ''
-    : translate('Никто не будет отмечен.');
+  const status = $('mentionStatus');
+  if (status) {
+    status.textContent = state.mentionEdits[region].length
+      ? ''
+      : translate('Никто не будет отмечен.');
+  }
 }
 
 /** Cached name for a stored value, falling back to the raw value. */
@@ -146,6 +150,7 @@ export async function loadMentions() {
     state.mentionDefaults = data;
     renderMentions();
   } catch {
-    $('mentionStatus').textContent = translate('Не удалось загрузить список людей. Обновите страницу.');
+    const status = $('mentionStatus');
+    if (status) status.textContent = translate('Не удалось загрузить список людей. Обновите страницу.');
   }
 }

@@ -52,13 +52,13 @@ class LinkParsingTests(unittest.TestCase):
     def test_normalize_accepts_a_mixed_list(self):
         self.assertEqual(
             normalize_mentions([PROFILE_LINK, "@ilyos.ismoilov"]),
-            ["U04BNNL48KF", "ilyos.ismoilov"],
+            ["U04BNNL48KF", "@ilyos.ismoilov"],
         )
 
-    def test_unrelated_url_is_rejected_with_guidance(self):
-        with self.assertRaises(ValueError) as caught:
-            normalize_mentions(["https://example.com/not-a-profile"])
-        self.assertIn("profile link", str(caught.exception))
+    def test_unrelated_url_is_kept_as_text(self):
+        # It cannot notify anyone, but rejecting it must not block saving.
+        value = "https://example.com/not-a-profile"
+        self.assertEqual(normalize_mentions([value]), [value])
 
 
 class PeopleCacheTests(unittest.TestCase):
@@ -195,11 +195,16 @@ class PeopleEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["people"][0]["label"], "U04BNNL48KF")
 
-    def test_invalid_entry_is_a_400_with_guidance(self):
+    def test_unknown_entry_is_kept_instead_of_failing(self):
         with patch.object(storage, "get_slack_token", return_value=None):
-            response = self.client.post("/api/slack/people", json={"entries": ["@Ilyos Ismoilov"]})
+            response = self.client.post("/api/slack/people", json={"entries": ["@Dzmitryi Karaliou"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["people"][0]["id"], "@Dzmitryi Karaliou")
+
+    def test_broadcast_is_still_rejected(self):
+        with patch.object(storage, "get_slack_token", return_value=None):
+            response = self.client.post("/api/slack/people", json={"entries": ["<!channel>"]})
         self.assertEqual(response.status_code, 400)
-        self.assertIn("profile link", response.json()["detail"])
 
     def test_endpoint_is_not_reachable_through_the_tunnel(self):
         public = self.enterContext(

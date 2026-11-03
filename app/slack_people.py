@@ -19,6 +19,7 @@ SLACK_USERS_INFO_URL = "https://slack.com/api/users.info"
 CACHE_TTL = timedelta(days=1)
 
 
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -95,7 +96,7 @@ def remember(member_id: str, name: str, *, team_id: Optional[str] = None) -> Non
 
 
 async def resolve(token: Optional[str], member_id: str, *, refresh: bool = False) -> Optional[str]:
-    """Return a display name, using the cache unless `refresh` asks for Slack."""
+    """Return a display name from the cache, or ask Slack when it is missing."""
     if not refresh:
         name = cached(member_id)
         if name and not is_stale(member_id):

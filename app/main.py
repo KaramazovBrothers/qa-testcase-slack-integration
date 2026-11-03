@@ -122,6 +122,12 @@ class ResolvePeopleRequest(BaseModel):
     refresh: bool = False
 
 
+@app.get("/api/slack/people")
+async def slack_people_directory(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
+    """All known member names: config/slack_people.json plus cached lookups."""
+    return {"names": slack_people.all_cached()}
+
+
 @app.post("/api/slack/people")
 async def slack_people_lookup(
     payload: ResolvePeopleRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID

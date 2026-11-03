@@ -65,16 +65,24 @@ check('API: no method lost', missing.length === 0, `missing: ${missing.join(', '
 check('API: ready promise present', typeof modern.qaGenerator.ready?.then === 'function');
 
 // --- form controls ----------------------------------------------------------
+// The mention editor moved from the generator to the workspace, so its four
+// controls (mentionList, mentionStatus, addMention, resetMentions) are gone on
+// purpose. Everything else must still match the legacy generator exactly.
+const MOVED_TO_WORKSPACE = ['mentionList', 'mentionStatus', 'addMention', 'resetMentions'];
 const idsOf = (win) => [...win.document.querySelectorAll('[data-generator] [data-id]')]
   .map((el) => el.dataset.id).sort();
-const oldIds = idsOf(legacy);
+const oldIds = idsOf(legacy).filter((id) => !MOVED_TO_WORKSPACE.includes(id));
 const newIds = idsOf(modern);
 check('DOM: all data-id controls preserved', JSON.stringify(oldIds) === JSON.stringify(newIds),
   `old ${oldIds.length} vs new ${newIds.length}`);
 
 // --- buttons ----------------------------------------------------------------
 const buttonsOf = (win) => [...win.document.querySelectorAll('[data-generator] button')]
-  .map((b) => b.textContent.trim() || b.className).sort();
+  .map((b) => b.textContent.trim() || b.className)
+  // These moved to the workspace together with the mention editor: the two
+  // panel buttons and the per-row remove button it renders.
+  .filter((label) => !['Добавить человека', 'Восстановить список региона', 'Исключить'].includes(label))
+  .sort();
 const oldButtons = buttonsOf(legacy);
 const newButtons = buttonsOf(modern);
 check('DOM: all buttons preserved', JSON.stringify(oldButtons) === JSON.stringify(newButtons),
@@ -86,9 +94,11 @@ const labels = (win) => [...win.document.querySelectorAll('[data-generator] labe
 check('i18n: all labels translated identically', JSON.stringify(labels(legacy)) === JSON.stringify(labels(modern)));
 
 // --- mentions ---------------------------------------------------------------
-// Checked before `restore()` because restore legitimately clears local edits.
-check('mentions: region defaults rendered',
-  modern.document.querySelectorAll('[data-generator] [data-id="mentionList"] .mention-row').length === 1);
+// The mention editor is now part of the workspace UI (app/static/workspace.html
+// and workspace.js), not the generator. The adapter must still round-trip the
+// `mention_edits` it receives, which is checked below.
+check('mentions: editor moved to the workspace',
+  !modern.document.querySelector('[data-generator] [data-id="mentionList"]'));
 
 // --- workspace adapter round trip ------------------------------------------
 const snapshot = modern.qaGenerator.snapshot();

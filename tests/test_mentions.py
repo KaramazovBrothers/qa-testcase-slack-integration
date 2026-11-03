@@ -12,24 +12,20 @@ class MentionsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             format_mentions(['<!channel>'])
 
-    def test_display_name_error_explains_how_to_get_member_id(self):
-        """A Slack display name has spaces, so it can never notify a person."""
-        with self.assertRaises(ValueError) as caught:
-            normalize_mentions(['@Ilyos Ismoilov'])
-        message = str(caught.exception)
-        self.assertIn('@Ilyos Ismoilov', message)
-        self.assertIn('profile link', message)
-        self.assertIn('member ID', message)
+    def test_display_name_is_kept_as_text_instead_of_rejected(self):
+        """A display name cannot notify anyone, but rejecting it blocked saving."""
+        self.assertEqual(normalize_mentions(['@Dzmitryi Karaliou']), ['@Dzmitryi Karaliou'])
+        self.assertEqual(format_mentions(['@Dzmitryi Karaliou']), '@Dzmitryi Karaliou')
 
-    def test_invalid_mention_names_the_offending_value(self):
-        with self.assertRaises(ValueError) as caught:
-            normalize_mentions(['bad!char'])
-        self.assertIn('bad!char', str(caught.exception))
+    def test_display_name_does_not_become_a_mention(self):
+        """Passed through as text: Slack shows it but sends no notification."""
+        self.assertNotIn('<@', format_mentions(['@Dzmitryi Karaliou']))
 
     def test_member_id_and_username_are_accepted(self):
         self.assertEqual(normalize_mentions(['U0123456789']), ['U0123456789'])
-        self.assertEqual(normalize_mentions(['@ilyos']), ['ilyos'])
-        self.assertEqual(normalize_mentions(['@ilyos.ismoilov']), ['ilyos.ismoilov'])
+        self.assertEqual(normalize_mentions(['@ilyos']), ['@ilyos'])
+        self.assertEqual(format_mentions(['@ilyos']), '@ilyos')
+        self.assertEqual(format_mentions(['U0123456789']), '<@U0123456789>')
 
     def test_broadcast_groups_are_rejected(self):
         for value in ['@here', '@channel', '@everyone']:

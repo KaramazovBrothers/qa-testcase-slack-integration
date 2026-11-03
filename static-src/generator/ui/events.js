@@ -193,6 +193,7 @@ export function bindEvents() {
   bindAccountPickers();
 
   state.root.querySelector('.standalone-account-save').addEventListener('click', saveStandaloneAccounts);
-  $('addMention').addEventListener('click', addMention);
-  $('resetMentions').addEventListener('click', resetMentions);
+  // Mentions moved to the workspace UI, so these controls are optional here.
+  $('addMention')?.addEventListener('click', addMention);
+  $('resetMentions')?.addEventListener('click', resetMentions);
 }
