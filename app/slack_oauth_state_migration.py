@@ -15,6 +15,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCHEMA_VERSION = 7
+# Any later migration means a database that already has this table.
+LATEST_SCHEMA_VERSION = 8
 
 OAUTH_STATE_TTL_SECONDS = 600
 
@@ -24,9 +26,9 @@ def migrate(path: Path, backup_existing) -> None:
     db.row_factory = sqlite3.Row
     try:
         current = db.execute("PRAGMA user_version").fetchone()[0]
-        if current > SCHEMA_VERSION:
+        if current > LATEST_SCHEMA_VERSION:
             raise RuntimeError(
-                f"Database schema v{current} is newer than this code (v{SCHEMA_VERSION})"
+                f"Database schema v{current} is newer than this code (v{LATEST_SCHEMA_VERSION})"
             )
 
         columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}

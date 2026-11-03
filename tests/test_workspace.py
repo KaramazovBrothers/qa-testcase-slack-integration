@@ -138,7 +138,7 @@ class WorkspaceTests(unittest.TestCase):
         with patch.dict('os.environ',{'SLACK_CLIENT_ID':'fake','SLACK_REDIRECT_URI':'https://example.test/slack/oauth/callback'}):
             url,state=build_authorize_url()
         query=parse_qs(urlsplit(url).query)
-        self.assertEqual(query['user_scope'],['chat:write,channels:history,groups:history']);self.assertNotIn('scope',query)
+        self.assertEqual(query['user_scope'],['chat:write,channels:history,groups:history,users:read']);self.assertNotIn('scope',query)
         from app import slack_oauth_state_migration
         slack_oauth_state_migration.issue_state(storage.DB_PATH,storage.LOCAL_USER_ID,'test-state')
         with patch.object(storage,'get_slack_token',return_value=None),patch.object(storage,'save_slack_token') as save, patch.object(main,'exchange_code',AsyncMock(return_value={'authed_user':{'access_token':'fake-user','id':'U_FAKE'},'team':{'id':'T_FAKE'},'scope':'chat:write'})):

@@ -18,8 +18,8 @@ class MentionsTests(unittest.TestCase):
             normalize_mentions(['@Ilyos Ismoilov'])
         message = str(caught.exception)
         self.assertIn('@Ilyos Ismoilov', message)
-        self.assertIn('display name', message)
-        self.assertIn('Copy member ID', message)
+        self.assertIn('profile link', message)
+        self.assertIn('member ID', message)
 
     def test_invalid_mention_names_the_offending_value(self):
         with self.assertRaises(ValueError) as caught:

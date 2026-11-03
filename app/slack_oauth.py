@@ -14,7 +14,8 @@ def build_authorize_url() -> tuple[str, str]:
     state = secrets.token_urlsafe(32)
     query = urlencode({
         "client_id": client_id,
-        "user_scope": "chat:write,channels:history,groups:history",
+        # users:read lets the UI show a name instead of a raw member ID.
+        "user_scope": "chat:write,channels:history,groups:history,users:read",
         "redirect_uri": redirect_uri,
         "state": state,
     })

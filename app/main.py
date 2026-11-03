@@ -26,7 +26,7 @@ from app.slack_routes import get_slack_route
 
 load_dotenv()
 
-from app import slack_events, storage, slack_history, slack_oauth_state_migration
+from app import slack_events, storage, slack_history, slack_oauth_state_migration, slack_people
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
@@ -115,6 +115,34 @@ class SendCasesRequest(BaseModel):
     mention_users: Optional[list[str]] = Field(default=None, max_length=100)
     operation: Literal["deposit", "payout"] = "deposit"
     request_text: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ResolvePeopleRequest(BaseModel):
+    entries: list[str] = Field(default_factory=list, max_length=100)
+    refresh: bool = False
+
+
+@app.post("/api/slack/people")
+async def slack_people_lookup(
+    payload: ResolvePeopleRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID
+) -> dict:
+    """Turn pasted profile links/IDs into member IDs plus readable names.
+
+    Accepts exactly what a person copies out of Slack, so nobody has to know
+    that a member ID exists. A missing token or a Slack error leaves the ID
+    stored and simply omits the name.
+    """
+    try:
+        member_ids = normalize_mentions(payload.entries)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    token = storage.get_slack_token(user_id)
+    people = []
+    for member_id in member_ids:
+        name = await slack_people.resolve(token, member_id, refresh=payload.refresh)
+        people.append({"id": member_id, "name": name or "", "label": name or member_id})
+    return {"people": people, "names": {p["id"]: p["label"] for p in people}}
 
 
 @app.get("/", response_class=HTMLResponse)

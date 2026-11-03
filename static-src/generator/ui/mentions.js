@@ -45,12 +45,16 @@ export function renderMentions() {
 
     const input = document.createElement('input');
     input.value = name;
-    input.maxLength = 80;
-    input.placeholder = '@username / U0123456789';
+    input.maxLength = 300;
+    input.placeholder = translate('Ссылка на профиль, U0123456789 или @username');
     input.setAttribute('aria-label', translate('Человек для тега') + ' ' + (index + 1));
     input.addEventListener('input', () => {
       state.mentionEdits[region][index] = input.value;
       refreshCaseTags();
+    });
+    // Pasting a profile link is the easy path; resolve it once the field blurs.
+    input.addEventListener('blur', () => {
+      resolveMentionRow(region, index, input);
     });
 
     const remove = document.createElement('button');
@@ -62,7 +66,11 @@ export function renderMentions() {
       renderMentions();
     });
 
-    row.append(input, remove);
+    const label = document.createElement('span');
+    label.className = 'mention-name';
+    label.textContent = personLabel(name);
+
+    row.append(input, label, remove);
     list.appendChild(row);
   });
 
@@ -70,6 +78,45 @@ export function renderMentions() {
   $('mentionStatus').textContent = state.mentionEdits[region].length
     ? ''
     : translate('Никто не будет отмечен.');
+}
+
+/** Cached name for a stored value, falling back to the raw value. */
+function personLabel(value) {
+  const id = mentionId(value);
+  return (id && state.slackPeople && state.slackPeople[id]) || value;
+}
+
+/** Pull `U…` out of a value the user typed, so labels survive a paste. */
+function mentionId(value) {
+  const match = String(value || '').match(/(?:^|\/team\/|^@|<@)([UW][A-Z0-9]{2,})/);
+  return match ? match[1] : null;
+}
+
+/** Replace a pasted link with the member ID and remember the readable name. */
+async function resolveMentionRow(region, index, input) {
+  const value = input.value.trim();
+  if (!value) return;
+  try {
+    const response = await fetch('/api/slack/people', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: [value] }),
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    const person = data.people && data.people[0];
+    if (!person) return;
+    state.slackPeople = { ...(state.slackPeople || {}), ...(data.names || {}) };
+    if (person.id !== value) {
+      state.mentionEdits[region][index] = person.id;
+      input.value = person.id;
+      refreshCaseTags();
+    }
+    const label = input.parentElement && input.parentElement.querySelector('.mention-name');
+    if (label) label.textContent = person.label;
+  } catch (error) {
+    // Keep the typed value; sending validates it with a readable message.
+  }
 }
 
 /** Append an empty mention row, if the defaults are loaded. */

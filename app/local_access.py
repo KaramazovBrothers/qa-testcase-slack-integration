@@ -12,7 +12,8 @@ class LocalAccessMiddleware(BaseHTTPMiddleware):
         protected = (path == '/app' or path.startswith('/app/') or
                      path == '/api/tasks' or path.startswith('/api/tasks/') or
                      path in {'/generator', '/slack/send', '/slack/send-cases',
-                              '/api/slack-status', '/api/slack-diagnostics'})
+                              '/api/slack-status', '/api/slack-diagnostics',
+                              '/api/slack/people'})
         if protected:
             headers = request.headers
             host = request.url.hostname

@@ -118,6 +118,8 @@ def initialize():
     migrate_slack_token(DB_PATH, backup_existing)
     from app.slack_oauth_state_migration import migrate as migrate_oauth_state
     migrate_oauth_state(DB_PATH, backup_existing)
+    from app.slack_people_migration import migrate as migrate_slack_people
+    migrate_slack_people(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 
