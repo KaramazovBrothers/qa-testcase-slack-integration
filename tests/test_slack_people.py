@@ -75,7 +75,9 @@ class PeopleCacheTests(unittest.TestCase):
 
     def test_unknown_person_has_no_name(self):
         self.assertIsNone(slack_people.cached("U404"))
-        self.assertTrue(slack_people.is_stale("U404"))
+        # A hand-maintained entry never expires, and a missing one has nothing
+        # to expire either.
+        self.assertFalse(slack_people.is_stale("U404"))
 
     def test_remember_updates_an_existing_row(self):
         slack_people.remember("U1", "Old Name")
@@ -147,13 +149,19 @@ class ResolveTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await slack_people.resolve("token", "U1"), "Cached Person")
         fetcher.assert_not_awaited()
 
-    async def test_refresh_forces_a_call(self):
+    async def test_refresh_keeps_the_curated_name(self):
+        """A name the user typed is never replaced by a Slack answer."""
         slack_people.remember("U1", "Old Name")
         user = {"name": "ilyos", "profile": {"display_name": "New Name"}}
         fetcher = AsyncMock(return_value=user)
         with patch.object(slack_people, "fetch_user", fetcher):
+            self.assertEqual(await slack_people.resolve("token", "U1", refresh=True), "Old Name")
+
+    async def test_refresh_fills_a_blank_name_from_slack(self):
+        slack_people.remember("U1", "")
+        user = {"name": "ilyos", "profile": {"display_name": "New Name"}}
+        with patch.object(slack_people, "fetch_user", AsyncMock(return_value=user)):
             self.assertEqual(await slack_people.resolve("token", "U1", refresh=True), "New Name")
-        fetcher.assert_awaited_once()
 
     async def test_fetch_user_survives_a_slack_error(self):
         response = httpx.Response(200, json={"ok": False, "error": "missing_scope"})

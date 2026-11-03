@@ -35,13 +35,15 @@ const fields=gen.snapshot().fields;for(const kind of ['main','usd']){const ids=k
 
 // Mentions live in the workspace now: they belong to the region of the open
 // task, not to the generator form, and the iframe clipped them off-screen.
-let mentionDefaults=null,mentionEdits={},slackPeople={};
+// `directory` holds the shared per-region list (slack_people); `mentionEdits`
+// is the per-task working copy. Editing one never touches the other.
+let directory={},mentionEdits={},slackPeople={};
 const mentionRegion=()=>currentSet?.region||task?.region||'TR';
 const mentionValues=()=>(mentionEdits[mentionRegion()]||[]).map(v=>v.trim()).filter(Boolean);
 function mentionId(value){const m=String(value||'').match(/(?:^|\/team\/|^@|<@)([UW][A-Z0-9]{2,})/);return m?m[1]:null;}
 function mentionLabel(value){const id=mentionId(value);return (id&&slackPeople[id])||value;}
-function renderMentions(){const region=mentionRegion(),list=$('mentionList');list.replaceChildren();if(!mentionDefaults)return;
-if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[...(mentionDefaults[region]||[])];
+function renderMentions(){const region=mentionRegion(),list=$('mentionList');list.replaceChildren();
+if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[...(directory[region]||[])];
 mentionEdits[region]=mentionEdits[region].filter(v=>typeof v==='string');
 mentionEdits[region].forEach((value,index)=>{
 const row=el('div',undefined,'mention-row');
@@ -51,12 +53,23 @@ input.setAttribute('aria-label','Человек для тега '+(index+1));
 input.oninput=()=>{mentionEdits[region][index]=input.value;mark();};
 input.onblur=()=>resolveMention(region,index,input,label);
 const label=el('span',mentionLabel(value),'mention-name');
-const remove=button('Исключить',()=>{mentionEdits[region].splice(index,1);renderMentions();});
+const remove=button('Исключить',()=>{mentionEdits[region].splice(index,1);renderMentions();mark();});
 row.append(input,label,remove);list.append(row);});
 $('mentionStatus').textContent=mentionEdits[region].length?'':'Никто не будет отмечен.';}
-async function resolveMention(region,index,input,label){const value=input.value.trim();if(!value)return;try{const data=await api('/api/slack/people','POST',{entries:[value]});const person=data.people&&data.people[0];if(!person)return;slackPeople={...slackPeople,...(data.names||{})};if(person.id!==value){mentionEdits[region][index]=person.id;input.value=person.id;}label.textContent=person.label;mark();}catch(e){/* keep the typed value; sending explains the problem */}}
-async function loadMentions(){try{mentionDefaults=await api('/api/region-mentions');}catch(e){$('mentionStatus').textContent='Не удалось загрузить список людей. Обновите страницу.';}
-try{const data=await api('/api/slack/people');slackPeople={...(data.names||{}),...slackPeople};}catch(e){}
+async function resolveMention(region,index,input,label){const value=input.value.trim();if(!value)return;try{const data=await api('/api/slack/people','POST',{entries:[value]});const person=data.people&&data.people[0];if(!person)return;slackPeople={...slackPeople,...(data.names||{})};if(person.id!==value){mentionEdits[region][index]=person.id;input.value=person.id;}label.textContent=person.label;mark();
+// A person who is not in the shared directory yet: offer to remember them.
+if(!Object.keys(directory).length||!Object.values(directory).flat().some(v=>mentionId(v)===person.id)){
+if(confirm(`Добавить «${person.label}» в общий список региона ${region}?\n\nOK — сохранить в справочнике (доступен во всех задачах региона).\nОтмена — использовать только в этой задаче.`)){
+await api('/api/slack/people/directory','POST',{entry:person.id,region,name:person.name||''});
+await loadMentions();}
+}
+}catch(e){/* keep the typed value; sending explains the problem */}}
+/** Load the shared directory for the current region plus every known name. */
+async function loadMentions(){const region=mentionRegion();
+try{const data=await api('/api/slack/people?region='+encodeURIComponent(region));
+directory={[region]:(data.people||[]).map(p=>p.id)};
+slackPeople={...(data.names||{}),...slackPeople};}
+catch(e){$('mentionStatus').textContent='Не удалось загрузить список людей. Обновите страницу.';}
 renderMentions();}
 /** Apply the per-region mentions stored with a task's settings. */
 function restoreMentions(settings){mentionEdits=JSON.parse(JSON.stringify((settings&&settings.mention_edits)||{}));renderMentions();}
@@ -76,9 +89,9 @@ async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{
 function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:mentionValues(),cases:selected.map(({id,title,text,comment,request_text})=>({case_ids:[id],title,text,comment,request_text}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
 $('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
 $('addMention').onclick=()=>{const region=mentionRegion();if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[];mentionEdits[region].push('');renderMentions();mark();};
-$('resetMentions').onclick=()=>{delete mentionEdits[mentionRegion()];renderMentions();mark();};
+$('resetMentions').onclick=()=>{const region=mentionRegion();mentionEdits[region]=[...(directory[region]||[])];renderMentions();mark();};
 $('deleteTask').onclick=()=>action(async()=>{if(!confirm('Удалить задачу со всеми кейсами без возможности восстановления?'))return;await api(`/api/tasks/${task.id}`,'DELETE');await newDraft(false);});
 
 async function slackStatus(){const status=await api('/api/slack-status');$('slackStatus').textContent=status.connected?'Slack подключён':'Slack не подключён';}
 window.addEventListener('focus',()=>slackStatus().catch(()=>{}));window.addEventListener('beforeunload',e=>{if(busy||(gen&&dirty())){e.preventDefault();e.returnValue='';}});
-(async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();})().catch(e=>notice(e.message,true));
+(async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();await loadMentions();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();})().catch(e=>notice(e.message,true));

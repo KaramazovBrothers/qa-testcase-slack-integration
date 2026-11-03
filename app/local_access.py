@@ -11,9 +11,9 @@ class LocalAccessMiddleware(BaseHTTPMiddleware):
         # The public OAuth callback must remain reachable via ngrok.
         protected = (path == '/app' or path.startswith('/app/') or
                      path == '/api/tasks' or path.startswith('/api/tasks/') or
+                     path.startswith('/api/slack/people') or
                      path in {'/generator', '/slack/send', '/slack/send-cases',
-                              '/api/slack-status', '/api/slack-diagnostics',
-                              '/api/slack/people'})
+                              '/api/slack-status', '/api/slack-diagnostics'})
         if protected:
             headers = request.headers
             host = request.url.hostname

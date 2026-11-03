@@ -16,7 +16,7 @@ from pathlib import Path
 
 SCHEMA_VERSION = 7
 # Any later migration means a database that already has this table.
-LATEST_SCHEMA_VERSION = 8
+LATEST_SCHEMA_VERSION = 9
 
 OAUTH_STATE_TTL_SECONDS = 600
 

@@ -3,11 +3,10 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 from app import main, storage
-from app.mentions import format_mentions, load_region_mentions, normalize_mentions
+from app.mentions import format_mentions, normalize_mentions
 
 class MentionsTests(unittest.TestCase):
     def test_config_and_format(self):
-        self.assertEqual(len(load_region_mentions()), 19)
         self.assertEqual(format_mentions(['@testuser1','U0123456789','@testuser1']), '@testuser1 <@U0123456789>')
         with self.assertRaises(ValueError):
             format_mentions(['<!channel>'])
@@ -34,7 +33,6 @@ class MentionsTests(unittest.TestCase):
                     normalize_mentions([value])
 
     def test_send_overrides_and_empty_list(self):
-        self.assertEqual(asyncio.run(main.region_mentions())['TR'], ['@testuser1','@testuser2'])
         cases=[{'title':'first','text':'body'}, {'title':'second','text':'edited body','comment':'extra'}]
         for operation in ['deposit','payout']:
             for users in [[], ['@testuser2'], ['U0123456789']]:

@@ -18,7 +18,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from typing import Literal
-from app.mentions import load_region_mentions, normalize_mentions, format_mentions
+from app.mentions import normalize_mentions, format_mentions
 
 from app.slack_client import post_message
 from app.slack_oauth import build_authorize_url, exchange_code
@@ -122,9 +122,22 @@ class ResolvePeopleRequest(BaseModel):
     refresh: bool = False
 
 
+class AddPersonRequest(BaseModel):
+    entry: str = Field(min_length=1, max_length=300)
+    region: str = Field(min_length=1, max_length=8)
+    name: Optional[str] = Field(default=None, max_length=200)
+
+
+class ForgetPersonRequest(BaseModel):
+    member_id: str = Field(min_length=1, max_length=80)
+
+
 @app.get("/api/slack/people")
-async def slack_people_directory(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
-    """All known member names: config/slack_people.json plus cached lookups."""
+async def slack_people_directory(region: str = "", user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
+    """The shared people directory, optionally limited to one region."""
+    if region:
+        people = slack_people.in_region(region)
+        return {"people": people, "names": {p["id"]: p["name"] or p["id"] for p in people}}
     return {"names": slack_people.all_cached()}
 
 
@@ -151,6 +164,43 @@ async def slack_people_lookup(
     return {"people": people, "names": {p["id"]: p["label"] for p in people}}
 
 
+@app.post("/api/slack/people/directory")
+async def slack_people_add(
+    payload: AddPersonRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID
+) -> dict:
+    """Save one person to the shared directory under a region.
+
+    The name comes from Slack when `users:read` is granted, otherwise from the
+    caller. An entry that cannot be resolved is still saved by ID: the mention
+    works, only the label is missing.
+    """
+    try:
+        member_ids = normalize_mentions([payload.entry])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not member_ids:
+        raise HTTPException(status_code=400, detail="No person to add")
+
+    member_id = member_ids[0]
+    name = (payload.name or "").strip()
+    if not name:
+        token = storage.get_slack_token(user_id)
+        name = (await slack_people.resolve(token, member_id) or "").strip()
+    slack_people.remember(member_id, name, region=payload.region, from_slack=not payload.name)
+    return {"ok": True, "id": member_id, "name": name, "region": payload.region}
+
+
+@app.delete("/api/slack/people/directory")
+async def slack_people_forget(
+    payload: ForgetPersonRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID
+) -> dict:
+    """Remove one person from the shared directory."""
+    removed = slack_people.forget(payload.member_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Person not found in the directory")
+    return {"ok": True, "removed": payload.member_id}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
     connected = storage.get_slack_token(user_id) is not None
@@ -170,14 +220,6 @@ async def home(user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
 @app.get("/generator")
 async def generator() -> FileResponse:
     return FileResponse(BASE_DIR / "static" / "generator.html", media_type="text/html")
-
-
-@app.get("/api/region-mentions")
-async def region_mentions() -> dict:
-    try:
-        return load_region_mentions()
-    except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=500, detail="Could not load region mentions") from exc
 
 
 @app.get("/slack/oauth/start")
@@ -283,15 +325,11 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     try:
-        selected = payload.mention_users
-        if selected is None:
-            selected = load_region_mentions().get(payload.region, [])
-        user_ids = normalize_mentions(selected)
+        # No fallback to a default list: an empty selection mentions nobody.
+        user_ids = normalize_mentions(payload.mention_users or [])
         mentions = format_mentions(user_ids)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail="Could not load region mentions") from exc
     operation = "выплаты" if payload.operation == "payout" else "депозита"
     request_text = payload.request_text.strip() if payload.request_text is not None else f"Просьба провести тест {operation}."
 
