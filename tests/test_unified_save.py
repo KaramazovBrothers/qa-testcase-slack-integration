@@ -28,9 +28,9 @@ class UnifiedSaveTests(unittest.TestCase):
 
     def test_unnamed_idempotency_and_single_region(self):
         p=self.draft();a=self.save(p);b=self.save(p)
-        self.assertEqual(a['task']['id'],b['task']['id']);self.assertEqual(a['task']['title'],'Без названия 1')
+        self.assertEqual(a['task']['id'],b['task']['id']);self.assertEqual(a['task']['title'],'')
         self.assertIsNone(a['task']['jira_id']);self.assertEqual(a['task']['settings']['mention_edits'],{'EC':['@current']})
-        p=self.draft('second');p['jira_id']='QA-7';self.assertEqual(self.save(p)['task']['title'],'Без названия 2')
+        p=self.draft('second');p['jira_id']='QA-7';self.assertEqual(self.save(p)['task']['title'],'')
         p['settings']['fields']['region']='TR';self.assertEqual(self.client.post('/api/tasks/save',json=p).status_code,409)
         self.assertEqual(len(self.client.get('/api/tasks').json()),2)
 

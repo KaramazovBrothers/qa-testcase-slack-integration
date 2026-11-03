@@ -43,8 +43,6 @@ def migrate(db_path, backup_existing):
         db.execute('DROP TABLE tasks')
         db.execute('ALTER TABLE tasks_v2 RENAME TO tasks')
         db.execute('CREATE INDEX tasks_owner_updated ON tasks(owner_user_id,updated_at DESC)')
-        db.execute('''CREATE TABLE user_counters (
-            user_id INTEGER PRIMARY KEY REFERENCES users(id), unnamed_task INTEGER NOT NULL DEFAULT 0)''')
         db.execute('''CREATE TABLE test_accounts (
             id TEXT PRIMARY KEY, task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
             name TEXT NOT NULL, account_id TEXT NOT NULL, login TEXT NOT NULL, password TEXT NOT NULL,

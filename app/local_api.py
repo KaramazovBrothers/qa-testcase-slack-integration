@@ -46,20 +46,10 @@ class TaskInput(Model):
 
 
 def task_identity(db, payload, user_id, existing=None):
-    # Preserve each user-entered field independently.
-    if payload.title:
-        return payload.jira_id, payload.title
-    if existing and existing['title'].startswith('Без названия '):
-        return payload.jira_id, existing['title']
-    db.execute('INSERT OR IGNORE INTO user_counters(user_id) VALUES(?)',(user_id,))
-    number=db.execute('SELECT unnamed_task FROM user_counters WHERE user_id=?',(user_id,)).fetchone()[0]
-    while True:
-        number+=1
-        title=f'Без названия {number}'
-        if not db.execute('SELECT 1 FROM tasks WHERE owner_user_id=? AND title=?',(user_id,title)).fetchone():
-            break
-    db.execute('UPDATE user_counters SET unnamed_task=? WHERE user_id=?',(number,user_id))
-    return payload.jira_id,title
+    # Preserve each user-entered field independently. An unnamed task keeps an
+    # empty title instead of an invented one: the UI shows a placeholder, so
+    # there is nothing to number and no counter to keep.
+    return payload.jira_id, payload.title
 
 
 class Settings(Model):

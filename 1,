@@ -1,0 +1,6 @@
+Error: in prepare, no such column: id
+  SELECT id,event_type,received_at,outcome FROM slack_events ORDER BY rowid DESC
+         ^--- error here
+Error: in prepare, no such column: id
+  SELECT id,event_type,received_at,outcome FROM slack_events ORDER BY rowid DESC
+         ^--- error here
