@@ -124,6 +124,8 @@ def initialize():
     migrate_slack_people(DB_PATH, backup_existing)
     from app.task_status_migration import migrate as migrate_task_status
     migrate_task_status(DB_PATH, backup_existing)
+    from app.webview_apk_migration import migrate as migrate_webview_apk
+    migrate_webview_apk(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 

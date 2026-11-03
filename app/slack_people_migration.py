@@ -10,7 +10,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_VERSION = 9
-LATEST_SCHEMA_VERSION = 10
+LATEST_SCHEMA_VERSION = 11
 
 
 def migrate(path: Path, backup_existing) -> None:

@@ -30,6 +30,7 @@ from app import slack_events, storage, slack_history, slack_oauth_state_migratio
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
+from app.webview_api import router as webview_router
 from app.local_access import LocalAccessMiddleware
 
 
@@ -43,6 +44,7 @@ app = FastAPI(title="QA Testcase Slack Integration", lifespan=lifespan)
 app.add_middleware(LocalAccessMiddleware)
 app.include_router(workspace_router)
 app.include_router(local_router)
+app.include_router(webview_router)
 
 
 @app.get("/app", include_in_schema=False)

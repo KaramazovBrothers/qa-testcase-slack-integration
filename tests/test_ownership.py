@@ -127,7 +127,7 @@ class OwnershipMigrationTests(unittest.TestCase):
             for name in ('case_sets','test_cases','slack_send_cases'):
                 self.assertEqual([tuple(r) for r in db.execute(f'SELECT {columns[name]} FROM {name}')],original[name])
             self.assertEqual(tuple(db.execute('SELECT id,channel,ts,sent_at,permalink,permalink_error,permalink_checked_at FROM slack_sends').fetchone()),original['slack_sends'][0])
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],10)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],11)
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
         backups=list((self.path.parent/'backups').glob('*.pre-users.*.db'));self.assertEqual(len(backups),1)
         self.assertEqual(backups[0].stat().st_mode&0o777,0o600)
@@ -137,8 +137,9 @@ class OwnershipMigrationTests(unittest.TestCase):
         storage.initialize()
         # One backup per migration that actually alters an existing table.
         # v8/v9 only create and rebuild the (empty) people table in this
-        # fixture's v1 database; v10 adds the task status column, so it does.
-        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),9)
+        # fixture's v1 database; v10 adds the task status column and v11 the
+        # WebView tables, so both leave a backup.
+        self.assertEqual(len(list((self.path.parent/'backups').glob('*.db'))),10)
 
     def test_failed_integrity_check_rolls_back_upgrade(self):
         with sqlite3.connect(self.path) as db:

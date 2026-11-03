@@ -138,4 +138,31 @@ $('deleteTask').onclick=()=>action(async()=>{if(!confirm('Удалить зад�
 
 async function slackStatus(){const status=await api('/api/slack-status');$('slackStatus').textContent=status.connected?'Slack подключён':'Slack не подключён';}
 window.addEventListener('focus',()=>slackStatus().catch(()=>{}));document.addEventListener('input',()=>mark());document.addEventListener('change',()=>mark());window.addEventListener('beforeunload',e=>{if(busy||(gen&&dirty())){e.preventDefault();e.returnValue='';}});
+
+// --- WebView APK library ---------------------------------------------------
+const LICENCE_NAMES={com:'COM',pinco:'Pinco',zazino:'Zazino'};
+async function loadApks(){const data=await api('/api/webview/apks');const host=$('apkList');host.replaceChildren();
+for(const row of data.licences){const box=el('div',undefined,'apk-row');box.append(el('strong',LICENCE_NAMES[row.licence]||row.licence));
+if(row.uploaded_at){const link=el('a','Скачать '+row.filename);link.href='/api/webview/apks/'+row.licence;
+box.append(el('span',' · '+date(row.uploaded_at)+' · '+Math.round((row.size_bytes||0)/1024)+' КБ '),link);
+box.append(button('Удалить',()=>action(async()=>{if(!confirm('Удалить сборку '+(LICENCE_NAMES[row.licence]||row.licence)+'? Тестировщики не смогут её скачать.'))return;
+await api('/api/webview/apks/'+row.licence,'DELETE');await loadApks();$('apkStatus').textContent='Сборка удалена.';}),'danger'));}
+else box.append(el('span',' · сборка не загружена','muted'));host.append(box);}}
+async function loadApkPeople(){const data=await api('/api/webview/people');const host=$('apkPeople');host.replaceChildren();
+host.append(el('p','Кого тегать в канале WebView:','muted'));
+for(const person of data.people){const row=el('div',undefined,'row');row.append(el('span',(person.name||person.id)+' · '+person.id));
+row.append(button('Убрать',()=>action(async()=>{await api('/api/webview/people/'+person.id,'DELETE');await loadApkPeople();}),'danger'));host.append(row);}
+const [label,input]=field('Добавить человека (ссылка, ID или @username)','');const add=button('Добавить',()=>action(async()=>{
+const value=input.value.trim();if(!value)return;await api('/api/webview/people','POST',{entry:value,name:''});input.value='';await loadApkPeople();}),'secondary');
+host.append(label,add);}
+async function uploadApk(){const file=$('apkFile').files[0];if(!file){$('apkStatus').textContent='Выберите файл APK.';return;}
+const body=new FormData();body.append('licence',$('apkLicence').value);body.append('file',file);
+const response=await fetch('/api/webview/apks',{method:'POST',body});if(!response.ok){const data=await response.json();throw Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить файл');}
+$('apkFile').value='';await loadApks();$('apkStatus').textContent='Сборка загружена.';}
+async function requestBuild(){const picker=$('requestLicences');const licences=[...picker.selectedOptions].map(o=>o.value);
+if(!licences.length){$('apkStatus').textContent='Выберите хотя бы одну лицензию.';return;}
+const result=await api('/api/webview/request','POST',{licences});
+$('apkStatus').textContent=`Запрос отправлен в канал: ${licences.join(', ')}. Отмечено человек: ${result.tagged.length}.`;}
+$('apkUpload').onclick=()=>action(uploadApk);$('requestBuild').onclick=()=>action(requestBuild);
+loadApks().catch(e=>$('apkStatus').textContent=e.message);loadApkPeople().catch(()=>{});
 (async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();await loadMentions();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();})().catch(e=>notice(e.message,true));
