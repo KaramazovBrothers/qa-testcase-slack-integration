@@ -150,6 +150,8 @@ window.addEventListener('focus',()=>slackStatus().catch(()=>{}));document.addEve
 
 // --- WebView APK library ---------------------------------------------------
 const LICENCE_NAMES={com:'COM',pinco:'Pinco',zazino:'Zazino'};
+// The panel shows the result itself; the status line is only for problems.
+function apkProblem(message){const box=$('apkStatus');box.textContent=message;box.hidden=!message;}
 async function loadApks(){const data=await api('/api/webview/apks');const host=$('apkList');host.replaceChildren();
 for(const row of data.licences){const box=el('div',undefined,'apk-row');box.append(el('strong',LICENCE_NAMES[row.licence]||row.licence));
 if(row.uploaded_at){const link=el('a','Скачать '+row.filename);link.href='/api/webview/apks/'+row.licence;
@@ -164,17 +166,17 @@ row.append(button('Убрать',()=>action(async()=>{await api('/api/webview/pe
 const [label,input]=field('Добавить человека (ссылка, ID или @username)','');const add=button('Добавить',()=>action(async()=>{
 const value=input.value.trim();if(!value)return;await api('/api/webview/people','POST',{entry:value,name:''});input.value='';await loadApkPeople();}),'secondary');
 host.append(label,add);}
-async function uploadApk(){const file=$('apkFile').files[0];if(!file){$('apkStatus').textContent='Выберите файл APK.';return;}
+async function uploadApk(){const file=$('apkFile').files[0];if(!file){apkProblem('Выберите файл APK.');return;}
 const body=new FormData();body.append('licence',$('apkLicence').value);body.append('file',file);
 const response=await fetch('/api/webview/apks',{method:'POST',body});if(!response.ok){const data=await response.json();throw Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить файл');}
-$('apkFile').value='';await loadApks();$('apkStatus').textContent='Сборка загружена.';}
+$('apkFile').value='';await loadApks();apkProblem('');}
 async function requestBuild(){const licences=[...$('requestLicences').querySelectorAll('input[type="checkbox"]:checked')].map(box=>box.value);
-if(!licences.length){$('apkStatus').textContent='Выберите хотя бы одну лицензию.';return;}
+if(!licences.length){apkProblem('Выберите хотя бы одну лицензию.');return;}
 const result=await api('/api/webview/request','POST',{licences});
-$('apkStatus').textContent=`Запрос отправлен в канал: ${licences.join(', ')}. Отмечено человек: ${result.tagged.length}.`;}
+apkProblem('');}
 // Two screens share one layout: the task workspace and the WebView builds.
 function showScreen(which){const web=which==='webview';$('tasksBlock').hidden=web;$('mainBlock').hidden=web;$('webviewBlock').hidden=!web;$('openWebview').hidden=web;document.querySelector('.layout').classList.toggle('webview-mode',web);}
-$('openWebview').onclick=()=>{showScreen('webview');loadApks().catch(e=>$('apkStatus').textContent=e.message);loadApkPeople().catch(()=>{});};
+$('openWebview').onclick=()=>{showScreen('webview');loadApks().catch(e=>apkProblem(e.message));loadApkPeople().catch(()=>{});};
 $('closeWebview').onclick=()=>showScreen('tasks');
 $('apkUpload').onclick=()=>action(uploadApk);$('requestBuild').onclick=()=>action(requestBuild);
 (async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();await loadMentions();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();})().catch(e=>notice(e.message,true));
