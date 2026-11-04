@@ -50,3 +50,43 @@ async def get_permalink(user_token: str, channel_id: str, message_ts: str) -> st
                        for domain in ('slack.com', 'slack-gov.com'))):
         raise ValueError('Slack returned an invalid permalink')
     return permalink
+
+async def upload_file(user_token: str, channel_id: str, filename: str,
+                      content: bytes, *, thread_ts: str | None = None,
+                      initial_comment: str = "") -> dict:
+    """Upload a binary to a channel or thread.
+
+    Slack retired files.upload; the current flow asks for an upload URL, sends
+    the bytes there, then completes the upload against the channel. Each step
+    can fail on its own, so the caller gets the message that names it.
+    """
+    headers = {"Authorization": f"Bearer {user_token}"}
+    async with httpx.AsyncClient(timeout=60) as client:
+        opened = (await client.get(
+            "https://slack.com/api/files.getUploadURLExternal", headers=headers,
+            params={"filename": filename, "length": len(content)},
+        )).json()
+        if not opened.get("ok"):
+            raise RuntimeError(f"Slack upload URL failed: {opened.get('error', 'unknown_error')}")
+
+        sent = await client.post(
+            opened["upload_url"], files={"file": (filename, content)},
+        )
+        sent.raise_for_status()
+
+        payload = {"files": [{"id": opened["file_id"], "title": filename}]}
+        if channel_id:
+            payload["channel_id"] = channel_id
+        if thread_ts:
+            payload["thread_ts"] = thread_ts
+        if initial_comment:
+            payload["initial_comment"] = initial_comment
+        completed = (await client.post(
+            "https://slack.com/api/files.completeUploadExternal",
+            headers={**headers, "Content-Type": "application/json; charset=utf-8"},
+            json=payload,
+        )).json()
+    if not completed.get("ok"):
+        raise RuntimeError(f"Slack upload failed: {completed.get('error', 'unknown_error')}")
+    return completed
+

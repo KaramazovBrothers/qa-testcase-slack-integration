@@ -20,7 +20,8 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from app.mentions import normalize_mentions, format_mentions
 
-from app.slack_client import post_message
+from app.slack_client import post_message, upload_file
+from app import webview_apk
 from app.slack_oauth import build_authorize_url, exchange_code
 from app.slack_routes import get_slack_route
 
@@ -109,6 +110,8 @@ class GeneratedCase(BaseModel):
     text: str
     comment: str = ""
     request_text: Optional[str] = Field(default=None, max_length=2000)
+    # Set for WebView cases: the build of this licence rides along in the thread.
+    licence: Optional[Literal["com", "pinco", "zazino"]] = None
 
 
 class SendCasesRequest(BaseModel):
@@ -369,6 +372,18 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
                 # Our own note must not come back as a "reply".
                 slack_history.append_own_message(send_id, posted_note.get("ts"), user_id)
 
+        if case.licence:
+            build = webview_apk.read_apk(case.licence)
+            if build:
+                uploaded = await upload_file(
+                    user_token, channel_id, build["filename"], build["content"],
+                    thread_ts=thread_ts,
+                    initial_comment=f"APK WebView ({case.licence}) · загружен {build['uploaded_at'][:10]}",
+                )
+                if case.case_ids:
+                    # The attached file is ours; do not read it back as a reply.
+                    for file in uploaded.get("files") or []:
+                        slack_history.append_own_message(send_id, file.get("id"), user_id)
         thread_ts_values.append(thread_ts)
         sent += 1
 

@@ -25,3 +25,4 @@
 .slack-history button.danger{margin-left:10px;padding:4px 8px;font-size:12px}
 .apk-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #e7edf5}.apk-row strong{min-width:80px}#apkPeople .row{padding:4px 0}#apkPeople button{padding:5px 9px}
 .licence-checks{gap:16px;margin:6px 0 10px}.licence-checks .check{margin:0}
+.apk-note{margin:10px 0;padding:8px 12px;border-radius:6px;background:#eef6f0;color:#2c6b47;font-size:13px}.apk-note.warn{background:#fff4e5;color:#96591a}.webview-entry{margin-top:14px;width:100%}.layout.webview-mode{grid-template-columns:280px minmax(0,1fr)}

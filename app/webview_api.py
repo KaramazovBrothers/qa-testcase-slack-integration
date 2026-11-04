@@ -68,6 +68,18 @@ def delete_apk(licence: str) -> Response:
     return Response(status_code=204)
 
 
+@router.get("/apk-for/{licence}")
+def apk_for(licence: str) -> dict:
+    """Whether a WebView case of this licence would ship a build today."""
+    if licence not in webview_apk.LICENCES:
+        raise HTTPException(422, f"Unknown licence: {licence}")
+    row = webview_apk.read_apk(licence)
+    if not row:
+        return {"licence": licence, "available": False, "filename": None, "uploaded_at": None}
+    return {"licence": licence, "available": True, "filename": row["filename"],
+            "size_bytes": row["size_bytes"], "uploaded_at": row["uploaded_at"]}
+
+
 @router.get("/people")
 def list_people() -> dict:
     """Who gets tagged in a build request for this channel."""

@@ -20,9 +20,13 @@ class WebviewTests(unittest.TestCase):
         storage.save_slack_token(storage.LOCAL_USER_ID, 'fake-user-token')
         # Never touch the real Slack workspace from a test.
         self.sender = AsyncMock(return_value={'ok': True, 'ts': '1700000000.000001'})
-        # The WebView router imports the client directly, not through main.
-        self.send_patch = patch('app.webview_api.post_message', self.sender)
-        self.send_patch.start()
+        # Both the WebView router and /slack/send-cases post messages; keep
+        # every path away from the real workspace.
+        self.webview_sender = AsyncMock(return_value={'ok': True, 'ts': '1700000000.000001'})
+        self.patches = [patch('app.webview_api.post_message', self.webview_sender),
+                        patch('app.main.post_message', self.sender)]
+        for item in self.patches:
+            item.start()
         self.client = TestClient(main.app, base_url='http://127.0.0.1:8000')
         self.peer_patch = patch(
             'app.local_access.LOCAL_HOSTS', {'localhost', '127.0.0.1', '::1', 'testclient'}
@@ -33,7 +37,8 @@ class WebviewTests(unittest.TestCase):
     def tearDown(self):
         self.client.__exit__(None, None, None)
         self.peer_patch.stop()
-        self.send_patch.stop()
+        for item in self.patches:
+            item.stop()
         self.db_patch.stop()
         self.temp.cleanup()
 
@@ -105,8 +110,8 @@ class WebviewTests(unittest.TestCase):
     def test_request_posts_one_message_per_licence_with_the_tag(self):
         response = self.client.post('/api/webview/request', json={'licences': ['pinco', 'com']})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(self.sender.await_count, 2)
-        texts = [call.args[2] for call in self.sender.call_args_list]
+        self.assertEqual(self.webview_sender.await_count, 2)
+        texts = [call.args[2] for call in self.webview_sender.call_args_list]
         self.assertIn('<@U03V08KDU31>', texts[0])
         self.assertIn('Привет! Скинь, пожалуйста, свежую сборку ПРОД для pinco', texts[0])
         self.assertIn('для com', texts[1])
@@ -115,17 +120,63 @@ class WebviewTests(unittest.TestCase):
     def test_request_rejects_unknown_licence(self):
         response = self.client.post('/api/webview/request', json={'licences': ['nope']})
         self.assertEqual(response.status_code, 422)
-        self.sender.assert_not_awaited()
+        self.webview_sender.assert_not_awaited()
 
     def test_request_needs_at_least_one_licence(self):
         self.assertEqual(self.client.post('/api/webview/request', json={'licences': []}).status_code, 422)
+
+    def test_apk_for_reports_missing_build(self):
+        self.assertEqual(self.client.get('/api/webview/apk-for/pinco').json(),
+                         {'licence': 'pinco', 'available': False, 'filename': None, 'uploaded_at': None})
+
+    def test_apk_for_reports_the_uploaded_build(self):
+        self.upload(name='wv.apk')
+        info = self.client.get('/api/webview/apk-for/pinco').json()
+        self.assertTrue(info['available'])
+        self.assertEqual(info['filename'], 'wv.apk')
+        self.assertTrue(info['uploaded_at'])
+
+    def test_apk_for_rejects_an_unknown_licence(self):
+        self.assertEqual(self.client.get('/api/webview/apk-for/nope').status_code, 422)
+
+    def test_sending_a_licence_case_attaches_the_build(self):
+        self.upload(payload=b'BUILD-BYTES', name='wv.apk')
+        uploader = AsyncMock(return_value={'ok': True, 'files': [{'id': 'F1'}]})
+        with patch('app.main.upload_file', uploader):
+            response = self.client.post('/slack/send-cases', json={
+                'region': 'TR', 'mention_users': [],
+                'cases': [{'case_ids': [], 'title': 'WebView', 'text': 'Body',
+                           'licence': 'pinco'}]})
+        self.assertEqual(response.status_code, 200, response.text)
+        uploader.assert_awaited_once()
+        args = uploader.await_args.args
+        self.assertEqual(args[2], 'wv.apk')
+        self.assertEqual(args[3], b'BUILD-BYTES')
+
+    def test_a_case_without_a_licence_attaches_nothing(self):
+        self.upload()
+        uploader = AsyncMock()
+        with patch('app.main.upload_file', uploader):
+            self.client.post('/slack/send-cases', json={
+                'region': 'TR', 'mention_users': [],
+                'cases': [{'case_ids': [], 'title': 'Plain', 'text': 'Body'}]})
+        uploader.assert_not_awaited()
+
+    def test_a_licence_case_without_a_build_does_not_upload(self):
+        uploader = AsyncMock()
+        with patch('app.main.upload_file', uploader):
+            response = self.client.post('/slack/send-cases', json={
+                'region': 'TR', 'mention_users': [],
+                'cases': [{'case_ids': [], 'title': 'WebView', 'text': 'Body', 'licence': 'com'}]})
+        self.assertEqual(response.status_code, 200, response.text)
+        uploader.assert_not_awaited()
 
     def test_request_is_not_reachable_through_the_tunnel(self):
         forwarded = self.client.post(
             '/api/webview/request', json={'licences': ['pinco']},
             headers={'x-forwarded-for': '1.2.3.4'})
         self.assertIn(forwarded.status_code, (401, 403))
-        self.sender.assert_not_awaited()
+        self.webview_sender.assert_not_awaited()
 
 
 if __name__ == '__main__':
