@@ -24,3 +24,4 @@
 #toggleStatus.done{background:#2c9a67;color:#fff;border-color:#2c9a67}#toggleStatus.done:hover{background:#268059;border-color:#268059}
 .slack-history button.danger{margin-left:10px;padding:4px 8px;font-size:12px}
 .apk-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #e7edf5}.apk-row strong{min-width:80px}#apkPeople .row{padding:4px 0}#apkPeople button{padding:5px 9px}
+.licence-checks{gap:16px;margin:6px 0 10px}.licence-checks .check{margin:0}

@@ -159,7 +159,7 @@ async function uploadApk(){const file=$('apkFile').files[0];if(!file){$('apkStat
 const body=new FormData();body.append('licence',$('apkLicence').value);body.append('file',file);
 const response=await fetch('/api/webview/apks',{method:'POST',body});if(!response.ok){const data=await response.json();throw Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить файл');}
 $('apkFile').value='';await loadApks();$('apkStatus').textContent='Сборка загружена.';}
-async function requestBuild(){const picker=$('requestLicences');const licences=[...picker.selectedOptions].map(o=>o.value);
+async function requestBuild(){const licences=[...$('requestLicences').querySelectorAll('input[type="checkbox"]:checked')].map(box=>box.value);
 if(!licences.length){$('apkStatus').textContent='Выберите хотя бы одну лицензию.';return;}
 const result=await api('/api/webview/request','POST',{licences});
 $('apkStatus').textContent=`Запрос отправлен в канал: ${licences.join(', ')}. Отмечено человек: ${result.tagged.length}.`;}
