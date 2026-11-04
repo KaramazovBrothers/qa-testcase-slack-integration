@@ -107,15 +107,22 @@ class WebviewTests(unittest.TestCase):
         self.assertFalse(any(p['id'] == 'U04BNNL48KF'
                              for p in self.client.get('/api/webview/people').json()['people']))
 
-    def test_request_posts_one_message_per_licence_with_the_tag(self):
+    def test_request_posts_one_message_listing_every_licence(self):
         response = self.client.post('/api/webview/request', json={'licences': ['pinco', 'com']})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(self.webview_sender.await_count, 2)
-        texts = [call.args[2] for call in self.webview_sender.call_args_list]
-        self.assertIn('<@U03V08KDU31>', texts[0])
-        self.assertIn('Привет! Скинь, пожалуйста, свежую сборку ПРОД для pinco', texts[0])
-        self.assertIn('для com', texts[1])
+        # One request deserves one message: the same person answers once.
+        self.assertEqual(self.webview_sender.await_count, 1)
+        text = self.webview_sender.call_args.args[2]
+        self.assertTrue(text.startswith('<@U03V08KDU31> '))
+        self.assertIn('свежую сборку ПРОД для pinco, com', text)
         self.assertEqual(response.json()['channel'], 'C07RKCUN132')
+        self.assertEqual(response.json()['sent'][0]['licences'], ['pinco', 'com'])
+
+    def test_request_lists_a_repeated_licence_once(self):
+        self.client.post('/api/webview/request', json={'licences': ['com', 'com']})
+        text = self.webview_sender.call_args.args[2]
+        self.assertIn('для com', text)
+        self.assertNotIn('com, com', text)
 
     def test_request_rejects_unknown_licence(self):
         response = self.client.post('/api/webview/request', json={'licences': ['nope']})

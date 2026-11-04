@@ -117,7 +117,7 @@ def remove_person(member_id: str) -> Response:
 
 @router.post("/request")
 async def request_build(payload: RequestInput, user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
-    """Post "send a fresh build" to the WebView channel for each licence."""
+    """Ask for fresh builds of every chosen licence in one message."""
     unknown = [item for item in payload.licences if item not in webview_apk.LICENCES]
     if unknown:
         raise HTTPException(422, f"Unknown licence: {', '.join(unknown)}")
@@ -128,11 +128,11 @@ async def request_build(payload: RequestInput, user_id: CurrentUserId = storage.
 
     people = webview_apk.channel_people()
     mentions = [person["id"] for person in people]
-    # One message per licence keeps the reply threads separate.
-    sent = []
-    for licence in payload.licences:
-        text = webview_apk.request_message([licence], mentions)
-        result = await post_message(token, webview_apk.CHANNEL, text)
-        sent.append({"licence": licence, "ts": result.get("ts"), "channel": webview_apk.CHANNEL})
-    return {"sent": sent, "channel": webview_apk.CHANNEL,
+    # One message lists them all: the same person answers once, in one thread.
+    licences = list(dict.fromkeys(payload.licences))
+    text = webview_apk.request_message(licences, mentions)
+    result = await post_message(token, webview_apk.CHANNEL, text)
+    return {"sent": [{"licences": licences, "ts": result.get("ts"),
+                      "channel": webview_apk.CHANNEL}],
+            "channel": webview_apk.CHANNEL,
             "tagged": [person["id"] for person in people]}
