@@ -30,7 +30,8 @@ let markedSignature='';function mark(){const current=signature();if(current===ba
 async function action(fn){if(busy)return;busy=true;$('workspace').inert=true;try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').inert=false;}}
 async function listTasks(){const revision=++searchRevision,items=await api('/api/tasks?q='+encodeURIComponent($('search').value)+($('onlyActive').checked?'&active=true':''));if(revision!==searchRevision)return;$('tasks').replaceChildren();for(const item of items){const b=button('',()=>action(()=>selectTask(item.id)),'task');b.dataset.id=item.id;b.dataset.status=item.status||'active';b.setAttribute('aria-current',String(task?.id===item.id));if(item.jira_id)b.append(el('strong',item.jira_id));b.append(el('span',item.title||'Без названия'));if(item.status==='done')b.append(el('em','done'));
 // Drawn from state, not patched afterwards: the list is rebuilt after every save.
-const count=taskReplies[String(item.id)];if(count){b.dataset.replies='new';b.append(el('span',count>1?`+${count}`:'новый ответ','replies-dot'));}
+// The sidebar mirrors the open set, so the dot only belongs to that task.
+const count=String(item.id)===currentTaskId()?unreadCount():0;if(count){b.dataset.replies='new';b.append(el('span',count>1?`+${count}`:'новый ответ','replies-dot'));}
 $('tasks').append(b);}}function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;removedSends={};replyBaseline={};caseReplies={};cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;for(const c of cases||[])if(c.id)setReplyBaseline(c);linkAccounts();renderMentions();renderCases();restoreTaskReplies();if(value&&value.id){startReplyStream();}else{stopReplyStream();}}
 async function listSets(){return task?await api(`/api/tasks/${task.id}/sets`):[];}
 function showTask(){ $('jiraId').value=task?.jira_id||'';$('taskTitle').value=task?.title||'';$('deleteTask').hidden=!task;const toggle=$('toggleStatus');toggle.hidden=!task;const done=task?.status==='done';toggle.textContent='Статус: '+(task?.status||'active');toggle.classList.toggle('done',!!done);toggle.setAttribute('aria-pressed',String(!!done));toggle.title=done?'Вернуть в активные':'Пометить как done';$('dates').textContent=task?`Изменена ${date(task.updated_at)}`:'Черновик · ещё не сохранён';gen.lockRegion(!!task?.region);}
@@ -211,21 +212,24 @@ async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{
 // Replies arrive without a page reload. The backend pushes them over SSE the
 // moment Slack is stored; a slow timer is only a safety net for a dropped
 // connection, so a reply never waits for a poll tick.
+const REPLY_POLL_MS=120000;
 let replyTimer=null,replyStream=null;
-// Replies seen per task while it is open, so the sidebar entry can glow too.
-let taskReplies={};
 /** Replies seen per case, so a card keeps its badge when renderCases() runs again. */
 let caseReplies={};
 /** True while a case carries replies the operator has not acknowledged yet. */
 function hasNews(record){return !!caseReplies[String(record.id)];}
-function startReplyPolling(){if(replyTimer)return;replyTimer=setInterval(()=>{if(document.hidden||!currentSet||busy)return;if(replyStream&&replyStream.readyState===EventSource.OPEN)return;refreshReplies().catch(()=>{});},120000);}
+/** Cases of the open set that still carry news; the sidebar mirrors this. */
+function unreadCount(){let total=0;for(const key of Object.keys(caseReplies))total+=caseReplies[key];return total;}
+function startReplyPolling(){if(replyTimer)return;replyTimer=setInterval(()=>{if(document.hidden||!currentSet||busy)return;if(replyStream&&replyStream.readyState===EventSource.OPEN)return;refreshReplies().catch(()=>{});},REPLY_POLL_MS);}
 function stopReplyStream(){if(replyStream){replyStream.close();replyStream=null;}}
 function startReplyStream(){stopReplyStream();if(!currentSet||typeof EventSource==='undefined')return;
 replyStream=new EventSource(`${setPath()}/stream`);
 replyStream.onmessage=event=>{let data;try{data=JSON.parse(event.data);}catch{return;}if(data.type!=='reply')return;
 const caseIds=(data.case_ids||[]).map(Number);
 for(const c of cases||[]){if(!caseIds.includes(Number(c.id)))continue;const entry={ts:data.ts,text:data.text,author_id:data.author,received_at:data.received_at};const known=replyBaseline[c.id]||0;c.slack_replies=[...(c.slack_replies||[]),entry];if((parseFloat(entry.ts)||0)>known){replyBaseline[c.id]=parseFloat(entry.ts)||0;markNewReplies(c,1);}const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}}
-replyStream.onerror=()=>{/* EventSource reconnects on its own; the timer covers downtime. */};
+// EventSource reconnects on its own, but replies that landed while the tab was
+// asleep would wait for the slow poll: fetch once now to close that gap.
+replyStream.onerror=()=>{if(document.hidden||!currentSet||busy)return;refreshReplies().catch(()=>{});};
 }
 function markNewReplies(record,fresh){const id=String(record.id);caseReplies[id]=(caseReplies[id]||0)+fresh;const card=document.querySelector(`[data-case-id="${record.id}"]`);paintCaseReplies(record,card,fresh);
 // The «Прочитано» action lives inside the thread block, so redraw it here too:
@@ -234,11 +238,10 @@ const host=card?.querySelector('.slack-history');if(host)renderHistory(record,ho
 // The sidebar must say the same thing: a reply belongs to the open task too.
 // The id comes from the payload first: `task` is still null while `selectTask`
 // awaits its request, and a reply can land exactly in that window.
-const taskId=currentTaskId();  if(taskId){const key=String(taskId);taskReplies[key]=(taskReplies[key]||0)+fresh;
-    // `listTasks()` is async: a request started before this point would rebuild
-    // `#tasks` and drop the dot, so re-render from the saved counts afterwards.
-    markTaskReplies(key,taskReplies[key]);
-    listTasks();}
+const taskId=currentTaskId();
+// One source of truth: the sidebar shows what the cases say, so the two can
+// never drift apart after a read/unread toggle.
+if(taskId){const total=unreadCount();if(total)markTaskReplies(taskId,total);else clearTaskReplies(taskId);listTasks();}
 notice(`Новые ответы в Slack: ${fresh}.`);}
 /** The id of the task the open set belongs to, even if `task` is stale. */
 function currentTaskId(){
@@ -253,15 +256,15 @@ function paintCaseReplies(record,card,fresh){if(!card)return;const count=fresh??
 function restoreCaseReplies(){for(const c of cases||[]){if(!c.id)continue;const card=document.querySelector(`[data-case-id="${c.id}"]`);paintCaseReplies(c,card);}}
 function markTaskReplies(taskId,count){const node=document.querySelector(`#tasks .task[data-id="${taskId}"]`);if(!node)return;node.dataset.replies='new';let dot=node.querySelector('.replies-dot');if(!dot){dot=el('span','','replies-dot');node.append(dot);}dot.textContent=count>1?`+${count}`:'новый ответ';}
 /** Paint every remembered task mark; call after the list is rebuilt. */
-function restoreTaskReplies(){for(const [key,count] of Object.entries(taskReplies)){if(count)markTaskReplies(key,count);}}
-function clearTaskReplies(taskId){const key=String(taskId);delete taskReplies[key];const node=document.querySelector(`#tasks .task[data-id="${taskId}"]`);if(!node)return;delete node.dataset.replies;node.querySelector('.replies-dot')?.remove();}
+function restoreTaskReplies(){const taskId=currentTaskId();const total=unreadCount();if(taskId&&total)markTaskReplies(taskId,total);}
+function clearTaskReplies(taskId){const key=String(taskId);const node=document.querySelector(`#tasks .task[data-id="${taskId}"]`);if(node){delete node.dataset.replies;node.querySelector('.replies-dot')?.remove();}}
 function clearRepliesMark(record){delete caseReplies[String(record.id)];const card=document.querySelector(`[data-case-id="${record.id}"]`);if(card){delete card.dataset.replies;card.querySelector('.replies-badge')?.remove();}}
 /** Mark every reply of one case as read: badge, sidebar mark and the button. */
 function markRepliesRead(record){
   clearRepliesMark(record);
   // The task entry only stays lit while some case still has news.
   const taskId=currentTaskId();
-  if(taskId&&!Object.keys(caseReplies).length)clearTaskReplies(taskId);
+  if(taskId){const total=unreadCount();if(total)markTaskReplies(taskId,total);else clearTaskReplies(taskId);}
   const host=document.querySelector(`[data-case-id="${record.id}"] .slack-history`);
   if(host)renderHistory(record,host);
 }
@@ -271,10 +274,7 @@ function markRepliesUnread(record){
   const card=document.querySelector(`[data-case-id="${record.id}"]`);
   paintCaseReplies(record,card,1);
   const taskId=currentTaskId();
-  if(taskId){
-    taskReplies[String(taskId)]=(taskReplies[String(taskId)]||0)+1;
-    markTaskReplies(String(taskId),taskReplies[String(taskId)]);
-  }
+  if(taskId)markTaskReplies(taskId,unreadCount());
   const host=card?.querySelector('.slack-history');
   if(host)renderHistory(record,host);
 }

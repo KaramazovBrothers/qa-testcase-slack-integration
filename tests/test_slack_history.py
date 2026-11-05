@@ -103,7 +103,10 @@ class SlackHistoryTests(unittest.TestCase):
 
     def test_lookup_failure_commits_first_and_retry_never_posts(self):
         async def fail(*args):
-            pending=self.history()[0]
+            # Read the row straight from SQLite: calling the API from inside a
+            # mocked client would nest a request inside the running one.
+            with storage.connection() as db:
+                pending = dict(db.execute('SELECT * FROM slack_sends ORDER BY id').fetchone())
             self.assertEqual(pending['ts'],'1700000000.000002')
             self.assertIsNone(pending['permalink'])
             raise httpx.ReadTimeout('secret must not be stored')

@@ -2,6 +2,7 @@
 import json
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import HTTPException
 from app import storage
 from app.slack_client import get_permalink, list_thread_replies, delete_message
@@ -75,7 +76,7 @@ async def resolve_permalink(user_token, send_id, user_id=storage.LOCAL_USER_ID):
         return record
     try:
         permalink = await get_permalink(user_token, record['channel'], record['ts'])
-    except Exception:
+    except (httpx.HTTPError, RuntimeError):
         # A lookup failure must never make an acknowledged post look unsent.
         # Do not persist exception text: it may contain request credentials.
         with storage.connection() as db:
@@ -114,7 +115,7 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
 
     try:
         replies = await list_thread_replies(user_token, channel, thread_ts)
-    except Exception:
+    except (httpx.HTTPError, RuntimeError):
         # The thread is already gone in Slack (deleted by hand, or pruned).
         # There is nothing to delete there, so only the local record is removed.
         replies = []
