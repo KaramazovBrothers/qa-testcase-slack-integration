@@ -222,7 +222,6 @@ def build_generator_js() -> str:
         "generator/cases/wallet.js",
         "generator/cases/index.js",
         "generator/cases/payout.js",
-        "generator/ui/mentions.js",
         "generator/cases/render.js",
         "generator/ui/language.js",
         "generator/ui/accounts.js",

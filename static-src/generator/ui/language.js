@@ -1,6 +1,5 @@
 import { state } from '../store.js';
 import { translate } from '../translations/translations.js';
-import { renderMentions } from './mentions.js';
 import { updateUI } from '../cases/payout.js';
 
 const SKIP_SELECTOR = [
@@ -29,7 +28,6 @@ export function cacheStaticNodes() {
 /** Re-apply the active language to the whole form. */
 export function refreshLanguage() {
   const root = state.root;
-  renderMentions();
   root.lang = state.language;
   translatableNodes.forEach(([node, original]) => {
     const core = original.trim();

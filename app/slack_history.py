@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from app import storage
-from app.slack_client import get_permalink
+from app.slack_client import get_permalink, list_thread_replies, delete_message
 
 
 def now():
@@ -86,6 +86,82 @@ async def resolve_permalink(user_token, send_id, user_id=storage.LOCAL_USER_ID):
             db.execute('UPDATE slack_sends SET permalink=?,permalink_error=NULL,permalink_checked_at=? WHERE id=?',
                        (permalink, now(), send_id))
     return read_send(send_id,user_id)
+
+
+class ThreadHasPeopleReplies(HTTPException):
+    """Raised before anything is deleted when a person answered in the thread."""
+
+    def __init__(self, count: int):
+        super().__init__(
+            409,
+            f'В треде есть ответы людей ({count}). Удаление отменено: '
+            'сообщение и тред в Slack остались без изменений.',
+        )
+
+
+async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
+    """Delete a send's thread from Slack, then forget it locally.
+
+    Everything is checked first: if anyone other than the app wrote in the
+    thread, nothing is deleted at all. A partially deleted thread is worse than
+    an untouched one, because the local history would no longer describe Slack.
+    """
+    record = read_send(send_id, user_id)
+    channel = record['channel']
+    thread_ts = record['thread_ts'] or record['ts']
+    own = set(json.loads(record['own_ts'] or '[]'))
+    own.add(record['ts'])
+
+    try:
+        replies = await list_thread_replies(user_token, channel, thread_ts)
+    except Exception:
+        # The thread is already gone in Slack (deleted by hand, or pruned).
+        # There is nothing to delete there, so only the local record is removed.
+        replies = []
+        gone_in_slack = True
+    else:
+        gone_in_slack = False
+
+    people = [m for m in replies if m.get('ts') not in own]
+    if people:
+        raise ThreadHasPeopleReplies(len(people))
+
+    if gone_in_slack:
+        forget_send(send_id, user_id)
+        return {'ok': True, 'deleted_messages': 0, 'send_id': send_id, 'already_gone': True}
+
+    # Ours only: the parent plus anything the app posted in the thread
+    # (instructions, APK upload notice). Newest first, parent last.
+    for message in sorted(replies, key=lambda m: m.get('ts') or '', reverse=True):
+        answer = await delete_message(user_token, channel, message['ts'])
+        if not answer.get('ok'):
+            error = answer.get('error', 'unknown_error')
+            if error == 'message_not_found':
+                # Already deleted by hand; keep going with the rest of the thread.
+                continue
+            raise HTTPException(
+                502,
+                f"Slack не удалил сообщение {message['ts']}: "
+                f"{error}. Тред остался в Slack.",
+            )
+    answer = await delete_message(user_token, channel, record['ts'])
+    if not answer.get('ok'):
+        error = answer.get('error', 'unknown_error')
+        if error != 'message_not_found':
+            raise HTTPException(
+                502,
+                f"Slack не удалил сообщение {record['ts']}: "
+                f"{error}. Тред остался в Slack.",
+            )
+
+    forget_send(send_id, user_id)
+    return {'ok': True, 'deleted_messages': len(replies) + 1, 'send_id': send_id}
+
+
+def forget_send(send_id, user_id=storage.LOCAL_USER_ID):
+    """Drop the local record; cascades remove replies and case links."""
+    with storage.connection() as db:
+        db.execute('DELETE FROM slack_sends WHERE id=? AND owner_user_id=?', (send_id, user_id))
 
 
 def attach_history(db, cases):

@@ -8,13 +8,6 @@ export const state = {
   /** @type {string[]} */
   protectedValues: [],
   payoutFeeManual: false,
-  /** @type {Record<string, string[]> | null} */
-  mentionDefaults: null,
-  /** @type {Record<string, string[]>} */
-  mentionEdits: {},
-  /** Cached Slack member id -> display name, so a mention reads as a person. */
-  /** @type {Record<string, string>} */
-  slackPeople: {},
   generated: false,
   /** @type {Record<string, unknown> | null} */
   workspaceHooks: null,

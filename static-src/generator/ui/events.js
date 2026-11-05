@@ -3,7 +3,6 @@ import { translate, localise } from '../translations/translations.js';
 import { amountInputIds, generateCases, validAmountInput } from '../cases/index.js';
 import { renderCases, caseCopyText, copyText } from '../cases/render.js';
 import { updatePayoutAmount, updateUI } from '../cases/payout.js';
-import { mentionPayload, renderMentions, addMention, resetMentions } from './mentions.js';
 import { refreshLanguage } from './language.js';
 import { loadAccounts, setAccountOptions, bindAccountPickers, saveStandaloneAccounts } from './accounts.js';
 
@@ -66,7 +65,8 @@ export async function sendCasesToSlack(skipFirst = false) {
     const response = await fetch('/slack/send-cases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ region: $('region').value, cases, ...mentionPayload() }),
+      body: JSON.stringify({ region: $('region').value, cases,
+        operation: $('integration').value === 'payout' ? 'payout' : 'deposit' }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Slack send failed');
@@ -131,7 +131,6 @@ function bindLightbox() {
 
 /** Region switch: confirm, clear credentials and reload the catalog. */
 function bindRegionSwitch() {
-  $('region').addEventListener('input', renderMentions);
   $('region').addEventListener('input', () => {
     const previous = state.accountRegion;
     const region = $('region').value;
@@ -139,7 +138,6 @@ function bindRegionSwitch() {
     if (state.workspaceHooks?.beforeRegionChange && !state.workspaceHooks.beforeRegionChange(previous)) {
       $('region').value = previous;
       updateUI();
-      renderMentions();
       return;
     }
     state.accountRegion = region;
@@ -189,7 +187,4 @@ export function bindEvents() {
   bindAccountPickers();
 
   state.root.querySelector('.standalone-account-save').addEventListener('click', saveStandaloneAccounts);
-  // Mentions moved to the workspace UI, so these controls are optional here.
-  $('addMention')?.addEventListener('click', addMention);
-  $('resetMentions')?.addEventListener('click', resetMentions);
 }

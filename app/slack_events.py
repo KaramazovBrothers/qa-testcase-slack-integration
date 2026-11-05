@@ -22,6 +22,7 @@ import time
 from datetime import datetime, timezone
 
 from app import storage
+from app import slack_stream
 
 VERSION = "v0"
 MAX_CLOCK_SKEW_SECONDS = 5 * 60
@@ -105,6 +106,22 @@ def is_own_message(row, ts: str) -> bool:
     return ts in own or ts == row["ts"]
 
 
+def _is_after_last_send(row, ts: str) -> bool:
+    """True when `ts` is newer than every message we posted in this thread.
+
+    Slack timestamps are `"<seconds>.<microseconds>"` strings, so a numeric
+    compare is safe. A message that is older than our own latest post cannot be
+    a new answer from a person: it is either our own echo or history.
+    """
+    own = [value for value in [*json.loads(row["own_ts"] or "[]"), row["ts"]]
+           if isinstance(value, str) and value]
+    try:
+        candidate = float(ts)
+    except (TypeError, ValueError):
+        return False
+    return all(candidate > float(value) for value in own if value)
+
+
 def _save_reply(row, event: dict) -> bool:
     """Store a reply once; returns False when it was already known."""
     with storage.connection() as db:
@@ -125,6 +142,15 @@ def _save_reply(row, event: dict) -> bool:
             ),
         )
         return cursor.rowcount > 0
+
+
+def _cases_for_send(send_id: int) -> list[int]:
+    """Cases that share this send, so the UI can highlight each card."""
+    with storage.connection() as db:
+        return [row[0] for row in db.execute(
+            "SELECT case_id FROM slack_send_cases WHERE send_id=?",
+            (send_id,),
+        )]
 
 
 def handle_event(payload: dict, *, retry_num: str | None = None) -> dict:
@@ -171,11 +197,26 @@ def handle_event(payload: dict, *, retry_num: str | None = None) -> dict:
     if is_own_message(row, ts):
         _remember(event_id, event_type, "own-message")
         return {"status": "ignored", "reason": "own-message"}
+    # Nothing older than the last message we posted in this thread can be a new
+    # reply. This closes the send race: Slack may deliver the echo of the case
+    # body before record_send committed its ts, and such an echo must never be
+    # reported as a tester's answer.
+    if not _is_after_last_send(row, ts):
+        _remember(event_id, event_type, "pre-send-ignored")
+        return {"status": "ignored", "reason": "before-our-message"}
     if _seen(event_id):
         return {"status": "ignored", "reason": "duplicate-event"}
 
     created = _save_reply(row, event)
     _remember(event_id, event_type, "stored" if created else "duplicate-reply")
+    if created:
+        # Push immediately: the workspace redraws without waiting for a poll.
+        slack_stream.publish_reply(row["id"], _cases_for_send(row["id"]), {
+            "ts": ts,
+            "author_id": event.get("user"),
+            "text": event.get("text") or "",
+            "received_at": now(),
+        })
     return {"status": "stored" if created else "ignored", "send_id": row["id"]}
 
 

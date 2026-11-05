@@ -7,6 +7,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator, model_validator
 from app import storage, slack_history
 from app.current_user import CurrentUserId
@@ -176,6 +177,18 @@ def require_task(db, task_id, user_id):
     return require(db, 'tasks', task_id, 'AND owner_user_id=?', (user_id,))
 
 
+def attach_replies(db, cases):
+    """Every case carries its thread replies in the set payload.
+
+    The workspace needs them at load time: a case that already has answers must
+    not look like it received one just now. One query for the whole set.
+    """
+    from app.slack_events import replies_for_case
+
+    for case in cases:
+        case['slack_replies'] = replies_for_case(db, case['id'])
+
+
 def get_set(db, task_id, set_id, user_id=storage.LOCAL_USER_ID):
     require_task(db, task_id, user_id)
     row = require(db, 'case_sets', set_id, 'AND task_id=?', (task_id,))
@@ -183,6 +196,7 @@ def get_set(db, task_id, set_id, user_id=storage.LOCAL_USER_ID):
     result['cases'] = [storage.decode(r, 'bug_links') for r in db.execute(
         'SELECT * FROM test_cases WHERE set_id=? ORDER BY position', (set_id,))]
     slack_history.attach_history(db, result['cases'])
+    attach_replies(db, result['cases'])
     result['counts'] = {s: sum(c['status'] == s for c in result['cases']) for s in ('Not tested','Passed','Failed','Blocked','Skipped')}
     return result
 
@@ -342,6 +356,24 @@ async def retry_slack_permalink(task_id: int, set_id: int, case_id: int, send_id
     return await slack_history.resolve_permalink(require_slack_token(user_id), send_id, user_id)
 
 
+@router.delete('/{task_id}/sets/{set_id}/cases/{case_id}/slack-sends/{send_id}')
+async def delete_slack_send(task_id: int, set_id: int, case_id: int, send_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    """Delete the Slack thread behind a history entry, then the entry itself.
+
+    Refuses with 409 when a person answered in the thread: Slack cannot delete
+    someone else's message, and a half-deleted thread would not match history.
+    """
+    from app.main import require_slack_token
+
+    with storage.connection() as db:
+        require_task(db,task_id,user_id)
+        require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
+        require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
+        if not db.execute('SELECT 1 FROM slack_send_cases WHERE send_id=? AND case_id=?', (send_id, case_id)).fetchone():
+            raise HTTPException(404, 'Slack send not found for this case')
+    return await slack_history.delete_send(require_slack_token(user_id), send_id, user_id)
+
+
 @router.get('/{task_id}/sets/{set_id}/cases/{case_id}/slack-replies')
 def read_slack_replies(task_id: int, set_id: int, case_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     """Replies imported from the Slack thread of this case.
@@ -356,6 +388,27 @@ def read_slack_replies(task_id: int, set_id: int, case_id: int, user_id: Current
         require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
         require(db,'test_cases',case_id,'AND set_id=?',(set_id,))
         return replies_for_case(db, case_id)
+
+
+@router.get('/{task_id}/sets/{set_id}/stream')
+async def workspace_stream(task_id: int, set_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
+    """Server-Sent Events: a frame the moment a Slack reply is stored.
+
+    The browser opens one connection per open set, so a reply that Slack must
+    respect as instant (a tester waiting on it) does not wait for a poll tick.
+    """
+    from app import slack_stream
+
+    with storage.connection() as db:
+        require_task(db,task_id,user_id)
+        require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
+
+    queue = slack_stream.subscribe()
+    return StreamingResponse(
+        slack_stream.stream(queue),
+        media_type='text/event-stream',
+        headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'},
+    )
 
 
 @router.delete('/{task_id}/sets/{set_id}/cases/{case_id}', status_code=204)

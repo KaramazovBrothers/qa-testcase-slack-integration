@@ -12,13 +12,6 @@ const state = {
   /** @type {string[]} */
   protectedValues: [],
   payoutFeeManual: false,
-  /** @type {Record<string, string[]> | null} */
-  mentionDefaults: null,
-  /** @type {Record<string, string[]>} */
-  mentionEdits: {},
-  /** Cached Slack member id -> display name, so a mention reads as a person. */
-  /** @type {Record<string, string>} */
-  slackPeople: {},
   generated: false,
   /** @type {Record<string, unknown> | null} */
   workspaceHooks: null,
@@ -779,161 +772,6 @@ function updateUI() {
   }
 }
 
-// ---- generator/ui/mentions.js ----------------------------------------
-/** Region key currently shown in the form. */
-const regionKey = () => $('region').value;
-
-/** Non-empty, trimmed mentions for the selected region. */
-function selectedMentions() {
-  if (!state.mentionDefaults) throw new Error(translate('Список людей ещё не загружен.'));
-  return (state.mentionEdits[regionKey()] || []).map((name) => name.trim()).filter(Boolean);
-}
-
-/** Payload fragment consumed by `/slack/send-cases`. */
-function mentionPayload() {
-  return {
-    mention_users: selectedMentions(),
-    operation: $('integration').value === 'payout' ? 'payout' : 'deposit',
-  };
-}
-
-/** Refresh the tag preview rendered above each case. */
-function refreshCaseTags() {
-  const text = selectedMentionsSafely().join(' ');
-  state.root.querySelectorAll('.case-tags').forEach((node) => { node.textContent = text; });
-}
-
-function selectedMentionsSafely() {
-  return (state.mentionEdits[regionKey()] || []).map((name) => name.trim()).filter(Boolean);
-}
-
-/** Rebuild the editable mention list for the selected region. */
-function renderMentions() {
-  refreshCaseTags();
-  const region = regionKey();
-  const list = $('mentionList');
-  if (!list) return;
-  list.textContent = '';
-  if (!state.mentionDefaults) return;
-  if (!Object.hasOwn(state.mentionEdits, region)) {
-    state.mentionEdits[region] = [...(state.mentionDefaults[region] || [])];
-  }
-
-  state.mentionEdits[region].forEach((name, index) => {
-    const row = document.createElement('div');
-    row.className = 'mention-row';
-
-    const input = document.createElement('input');
-    input.value = name;
-    input.maxLength = 300;
-    input.placeholder = translate('Ссылка на профиль, U0123456789 или @username');
-    input.setAttribute('aria-label', translate('Человек для тега') + ' ' + (index + 1));
-    input.addEventListener('input', () => {
-      state.mentionEdits[region][index] = input.value;
-      refreshCaseTags();
-    });
-    // Pasting a profile link is the easy path; resolve it once the field blurs.
-    input.addEventListener('blur', () => {
-      resolveMentionRow(region, index, input);
-    });
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'secondary';
-    remove.textContent = translate('Исключить');
-    remove.addEventListener('click', () => {
-      state.mentionEdits[region].splice(index, 1);
-      renderMentions();
-    });
-
-    const label = document.createElement('span');
-    label.className = 'mention-name';
-    label.textContent = personLabel(name);
-
-    row.append(input, label, remove);
-    list.appendChild(row);
-  });
-
-  refreshCaseTags();
-  const status = $('mentionStatus');
-  if (status) {
-    status.textContent = state.mentionEdits[region].length
-      ? ''
-      : translate('Никто не будет отмечен.');
-  }
-}
-
-/** Cached name for a stored value, falling back to the raw value. */
-function personLabel(value) {
-  const id = mentionId(value);
-  return (id && state.slackPeople && state.slackPeople[id]) || value;
-}
-
-/** Pull `U…` out of a value the user typed, so labels survive a paste. */
-function mentionId(value) {
-  const match = String(value || '').match(/(?:^|\/team\/|^@|<@)([UW][A-Z0-9]{2,})/);
-  return match ? match[1] : null;
-}
-
-/** Replace a pasted link with the member ID and remember the readable name. */
-async function resolveMentionRow(region, index, input) {
-  const value = input.value.trim();
-  if (!value) return;
-  try {
-    const response = await fetch('/api/slack/people', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: [value] }),
-    });
-    if (!response.ok) return;
-    const data = await response.json();
-    const person = data.people && data.people[0];
-    if (!person) return;
-    state.slackPeople = { ...(state.slackPeople || {}), ...(data.names || {}) };
-    if (person.id !== value) {
-      state.mentionEdits[region][index] = person.id;
-      input.value = person.id;
-      refreshCaseTags();
-    }
-    const label = input.parentElement && input.parentElement.querySelector('.mention-name');
-    if (label) label.textContent = person.label;
-  } catch (error) {
-    // Keep the typed value; sending validates it with a readable message.
-  }
-}
-
-/** Append an empty mention row, if the defaults are loaded. */
-function addMention() {
-  if (!state.mentionDefaults) return;
-  const region = regionKey();
-  if (!Object.hasOwn(state.mentionEdits, region)) state.mentionEdits[region] = [];
-  state.mentionEdits[region].push('');
-  renderMentions();
-}
-
-/** Drop local edits so the region defaults are restored on next render. */
-function resetMentions() {
-  delete state.mentionEdits[regionKey()];
-  renderMentions();
-}
-
-/** Load the versioned per-region default list from the backend. */
-async function loadMentions() {
-  try {
-    const response = await fetch('/api/region-mentions');
-    if (!response.ok) throw new Error('region mentions unavailable');
-    const data = await response.json();
-    const valid = data && typeof data === 'object' && !Array.isArray(data)
-      && Object.values(data).every((names) => Array.isArray(names) && names.every((name) => typeof name === 'string'));
-    if (!valid) throw new Error('invalid region mentions payload');
-    state.mentionDefaults = data;
-    renderMentions();
-  } catch {
-    const status = $('mentionStatus');
-    if (status) status.textContent = translate('Не удалось загрузить список людей. Обновите страницу.');
-  }
-}
-
 // ---- generator/cases/render.js ---------------------------------------
 const copyStatusTimers = new WeakMap();
 
@@ -986,7 +824,6 @@ function renderCases(cases) {
   const output = $('output');
   output.innerHTML = '';
   $('count').textContent = String(cases.length);
-  const regionCode = $('region').value;
 
   cases.forEach((item, index) => {
     const card = element('div', { className: 'case' });
@@ -1022,9 +859,6 @@ function renderCases(cases) {
     });
 
     const status = statusLine();
-    const tagPreview = element('div', { className: 'case-tags' });
-    tagPreview.style.marginBottom = '8px';
-    tagPreview.textContent = (state.mentionEdits[regionCode] || []).filter(Boolean).join(' ');
 
     const requestLabel = element('label', {
       text: translate('Обращение в Slack для этого кейса'),
@@ -1070,7 +904,7 @@ function renderCases(cases) {
     slackButton.addEventListener('click', () => sendSingleCase(card, status));
 
     head.append(heading, editButton, copyButton, slackButton);
-    card.append(head, status, tagPreview, requestLabel, body, commentLabel);
+    card.append(head, status, requestLabel, body, commentLabel);
     output.appendChild(card);
   });
 }
@@ -1135,7 +969,6 @@ function cacheStaticNodes() {
 /** Re-apply the active language to the whole form. */
 function refreshLanguage() {
   const root = state.root;
-  renderMentions();
   root.lang = state.language;
   translatableNodes.forEach(([node, original]) => {
     const core = original.trim();
@@ -1318,7 +1151,8 @@ async function sendCasesToSlack(skipFirst = false) {
     const response = await fetch('/slack/send-cases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ region: $('region').value, cases, ...mentionPayload() }),
+      body: JSON.stringify({ region: $('region').value, cases,
+        operation: $('integration').value === 'payout' ? 'payout' : 'deposit' }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Slack send failed');
@@ -1383,7 +1217,6 @@ function bindLightbox() {
 
 /** Region switch: confirm, clear credentials and reload the catalog. */
 function bindRegionSwitch() {
-  $('region').addEventListener('input', renderMentions);
   $('region').addEventListener('input', () => {
     const previous = state.accountRegion;
     const region = $('region').value;
@@ -1391,7 +1224,6 @@ function bindRegionSwitch() {
     if (state.workspaceHooks?.beforeRegionChange && !state.workspaceHooks.beforeRegionChange(previous)) {
       $('region').value = previous;
       updateUI();
-      renderMentions();
       return;
     }
     state.accountRegion = region;
@@ -1441,9 +1273,6 @@ function bindEvents() {
   bindAccountPickers();
 
   state.root.querySelector('.standalone-account-save').addEventListener('click', saveStandaloneAccounts);
-  // Mentions moved to the workspace UI, so these controls are optional here.
-  $('addMention')?.addEventListener('click', addMention);
-  $('resetMentions')?.addEventListener('click', resetMentions);
 }
 
 // ---- generator/index.js ----------------------------------------------
@@ -1487,10 +1316,6 @@ function installWorkspaceApi() {
         ])),
         language: state.language,
         payout_fee_manual: state.payoutFeeManual,
-        mention_edits: JSON.parse(JSON.stringify({
-          [state.root.querySelector('[data-id="region"]').value]:
-            state.mentionEdits[state.root.querySelector('[data-id="region"]').value] || [],
-        })),
       };
     },
     restore(settings = {}) {
@@ -1501,8 +1326,6 @@ function installWorkspaceApi() {
       });
       state.language = settings.language || 'ru';
       state.payoutFeeManual = !!settings.payout_fee_manual;
-      Object.keys(state.mentionEdits).forEach((key) => delete state.mentionEdits[key]);
-      Object.assign(state.mentionEdits, JSON.parse(JSON.stringify(settings.mention_edits || {})));
       state.generated = false;
       const output = state.root.querySelector('[data-id="output"]');
       const count = state.root.querySelector('[data-id="count"]');
@@ -1519,7 +1342,6 @@ function installWorkspaceApi() {
       return {
         cases: this.cases(),
         region: state.root.querySelector('[data-id="region"]').value,
-        ...mentionPayload(),
       };
     },
     /**
@@ -1557,7 +1379,6 @@ function start(root) {
   refreshLanguage();
   root.dataset.ready = '1';
   window.qaGenerator.ready = Promise.all([
-    loadMentions(),
     loadAccounts().catch(accountError),
   ]);
 }

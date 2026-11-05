@@ -4,7 +4,6 @@ import { header } from './cases/generate.js';
 import { localise } from './translations/translations.js';
 import { platformList, currencyFor, currentRegion } from './cases/platforms.js';
 import { walletName } from './cases/licenses.js';
-import { renderMentions, loadMentions, addMention, resetMentions, mentionPayload } from './ui/mentions.js';
 import { cacheStaticNodes, refreshLanguage } from './ui/language.js';
 import {
   accountError, setAccountOptions, loadAccounts, syncAccountFields, bindAccountPickers,
@@ -51,10 +50,6 @@ export function installWorkspaceApi() {
         ])),
         language: state.language,
         payout_fee_manual: state.payoutFeeManual,
-        mention_edits: JSON.parse(JSON.stringify({
-          [state.root.querySelector('[data-id="region"]').value]:
-            state.mentionEdits[state.root.querySelector('[data-id="region"]').value] || [],
-        })),
       };
     },
     restore(settings = {}) {
@@ -65,8 +60,6 @@ export function installWorkspaceApi() {
       });
       state.language = settings.language || 'ru';
       state.payoutFeeManual = !!settings.payout_fee_manual;
-      Object.keys(state.mentionEdits).forEach((key) => delete state.mentionEdits[key]);
-      Object.assign(state.mentionEdits, JSON.parse(JSON.stringify(settings.mention_edits || {})));
       state.generated = false;
       const output = state.root.querySelector('[data-id="output"]');
       const count = state.root.querySelector('[data-id="count"]');
@@ -83,7 +76,6 @@ export function installWorkspaceApi() {
       return {
         cases: this.cases(),
         region: state.root.querySelector('[data-id="region"]').value,
-        ...mentionPayload(),
       };
     },
     /**
@@ -121,10 +113,9 @@ export function start(root) {
   refreshLanguage();
   root.dataset.ready = '1';
   window.qaGenerator.ready = Promise.all([
-    loadMentions(),
     loadAccounts().catch(accountError),
   ]);
 }
 
 // Re-exported for the workspace adapter and tests.
-export { generateCases, renderMentions, addMention, resetMentions };
+export { generateCases };

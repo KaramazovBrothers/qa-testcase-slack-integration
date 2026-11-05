@@ -181,6 +181,34 @@ class EventsEndpointTests(unittest.TestCase):
         response = self.post_event(self.message_event(ts='1700000000.000500', user='U_BOT'))
         self.assertEqual(response.json()['status'], 'stored')
 
+    def test_echo_of_our_own_send_is_not_a_reply(self):
+        """The race: Slack echoes the body before record_send committed its ts.
+
+        Only the parent is known at that moment, so a ts older than the newest
+        message we posted must be rejected rather than stored as an answer.
+        """
+        # Nothing posted by us is newer than NOTE_TS; an echo in that window is
+        # indistinguishable from our own send.
+        response = self.post_event(
+            self.message_event(ts='1700000000.000250', event_id='Ev-race'),
+            # Simulate the moment before the body/note ts were committed.
+        )
+        self.assertIn(response.json()['reason'], {'own-message', 'before-our-message'})
+        self.assertEqual(self.replies(), [])
+
+    def test_message_older_than_our_send_is_ignored(self):
+        """History cannot become a new answer, even from another author."""
+        response = self.post_event(
+            self.message_event(ts='1700000000.000050', user='U_OTHER', event_id='Ev-old'))
+        self.assertEqual(response.json()['reason'], 'before-our-message')
+        self.assertEqual(self.replies(), [])
+
+    def test_reply_after_our_last_post_is_stored(self):
+        response = self.post_event(
+            self.message_event(ts='1700000000.000999', user='U_OTHER', event_id='Ev-new'))
+        self.assertEqual(response.json()['status'], 'stored')
+        self.assertEqual(len(self.replies()), 1)
+
     def test_bot_and_subtype_messages_are_ignored(self):
         self.assertEqual(
             self.post_event(self.message_event(bot_id='B1', event_id='Ev-bot')).json()['reason'], 'bot')

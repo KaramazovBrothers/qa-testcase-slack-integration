@@ -5,6 +5,10 @@
 .quick-generator{display:flex;align-items:center;justify-content:space-between;gap:20px}.quick-generator h2{margin-bottom:6px}.quick-generator p{margin:6px 0}.generator-link{display:inline-block;flex-shrink:0;background:#2363c4;color:white;text-decoration:none;border-radius:7px;padding:12px 18px;font-weight:600}@media(max-width:900px){.quick-generator{align-items:flex-start;flex-direction:column}}
 .account-row{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr)) auto;gap:12px;align-items:end;border-bottom:1px solid #dbe3ed;padding:12px 0}.account-row button{margin-bottom:10px}.case [contenteditable="plaintext-only"]{outline:2px solid #91b9ee;border-radius:4px;min-height:40px}.case textarea[readonly]{background:#f5f7fb;color:#52647b}#saveWork{min-width:140px}@media(max-width:1100px){.account-row{grid-template-columns:1fr 1fr}}
 
+/* A task whose case got a reply: visible in the sidebar without opening it. */
+.task[data-replies="new"]{background:#fff4e1;border-color:#e8912d}
+.task[data-replies="new"] strong{color:#8a4f0a}
+.task .replies-dot{display:inline-block;margin-left:6px;padding:0 6px;border-radius:9px;background:#e8912d;color:#fff;font:600 11px/1.7 inherit}
 .task-toolbar{align-items:flex-end}.task-toolbar label{margin:0;min-width:0}.task-toolbar .grow{min-width:220px}.task-toolbar button{min-height:43px}.slack-history:empty{display:none}
 
 .sidebar-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sidebar-actions button{padding:9px 6px;font-size:12px;line-height:1.4}
@@ -17,12 +21,38 @@
 .mention-row .mention-name{flex:0 0 auto;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#5b6472}
 .mention-row button{flex-shrink:0}
 
-/* Replies imported from the Slack thread. */
-.slack-replies{margin-top:8px;padding:8px 10px;border-left:3px solid #e8912d;background:#fff8ef;border-radius:4px}
+/* Replies imported from the Slack thread: neutral once read, accented while unread. */
+.slack-replies{margin-top:8px;padding:8px 10px;border-left:3px solid #c9d6e5;background:#f6f9fd;border-radius:4px;max-height:150px;overflow-y:auto;overscroll-behavior:contain}
 .slack-replies p{margin:4px 0;font-size:13px}
+/* The counter and its read-state toggle stay on one line above the replies. */
+.slack-replies-head{position:sticky;top:-8px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 0 4px;background:inherit}
+.slack-replies-head strong{font-size:13px;line-height:1.5}
+/* One control, two states: filled means «есть непрочитанное», plain means
+   «уже прочитано» and offers to bring the mark back. */
+.slack-replies-head button{flex:0 0 auto;display:inline-flex;align-items:center;height:22px;margin:0;padding:0 9px;border:1px solid #e0c9a8;border-radius:11px;background:#fff;color:#8a5a1f;font:600 11px/1 inherit;white-space:nowrap;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.slack-replies-head button:hover{background:#f6e6d2;border-color:#d4ab7c}
+.slack-replies-head button:active{background:#efdcc4}
+/* Only unread is highlighted; a read thread keeps the neutral chip. */
+.slack-replies-head button[data-state=unread]{background:#e8912d;border-color:#e8912d;color:#fff}
+.slack-replies-head button[data-state=unread]:hover{background:#d97f1d;border-color:#d97f1d}
+/* The unread thread itself carries the accent, not just its badge. */
+.case[data-replies="new"] .slack-replies{border-left-color:#e8912d;background:#fff8ef}
+/* Long send histories must not push the case itself away: newest first, scroll. */
+.slack-history .sends{max-height:150px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px}
+.slack-history .sends p{margin:0;padding:3px 0;line-height:1.45}
+.slack-history .sends>p+p{border-top:1px solid #dde7f3}
+.slack-history ul{padding-left:20px;margin:6px 0}
 .check{flex-direction:row;align-items:center;gap:8px;font-weight:500}.check input{width:auto}.task em{margin-left:6px;padding:1px 6px;border-radius:5px;background:#e7edf5;color:#5a6c83;font:600 11px/1.6 inherit;font-style:normal}.task[data-status=done] em{background:#e8f3ec;color:#31704d}
 #toggleStatus.done{background:#2c9a67;color:#fff;border-color:#2c9a67}#toggleStatus.done:hover{background:#268059;border-color:#268059}
 .slack-history button.danger{margin-left:10px;padding:4px 8px;font-size:12px}
+/* A case with unread thread replies: visible without opening the card. */
+.case[data-replies="new"]{border-left-color:#e8912d;box-shadow:0 0 0 2px rgba(232,145,45,.25)}
+.replies-badge{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:9px;background:#e8912d;color:#fff;font:600 11px/1.7 inherit;vertical-align:middle}
+/* A folded case keeps its title and controls, so the list stays scannable. */
+.case[data-folded="true"]{padding-bottom:10px}
+.case[data-folded="true"] h3{margin-bottom:6px}
+/* `label` sets display:flex, which wins over the `hidden` attribute. */
+.case-long[hidden],.case-long[hidden]>*{display:none}
 .apk-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #e7edf5}.apk-row strong{min-width:80px}#apkPeople .row{padding:4px 0}#apkPeople button{padding:5px 9px}
 .licence-checks{gap:16px;margin:6px 0 10px}.licence-checks .check{margin:0}
 .apk-note{margin:10px 0;padding:8px 12px;border-radius:6px;background:#eef6f0;color:#2c6b47;font-size:13px}.apk-note.warn{background:#fff4e5;color:#96591a}.webview-entry{margin-top:14px;width:100%}.layout.webview-mode{grid-template-columns:minmax(0,1fr)}

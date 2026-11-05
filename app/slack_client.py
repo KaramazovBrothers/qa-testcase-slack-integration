@@ -29,8 +29,6 @@ async def post_message(
 
 async def get_permalink(user_token: str, channel_id: str, message_ts: str) -> str:
     """Resolve an existing message; never post or retry a message here."""
-    from urllib.parse import urlsplit
-
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.get(
             'https://slack.com/api/chat.getPermalink',
@@ -42,6 +40,11 @@ async def get_permalink(user_token: str, channel_id: str, message_ts: str) -> st
     if not data.get('ok'):
         raise RuntimeError('Slack permalink lookup failed')
     permalink = data.get('permalink')
+    return _validated_permalink(permalink)
+
+
+def _validated_permalink(permalink) -> str:
+    from urllib.parse import urlsplit
     if not isinstance(permalink, str):
         raise ValueError('Slack did not return a permalink')
     url = urlsplit(permalink)
@@ -50,6 +53,52 @@ async def get_permalink(user_token: str, channel_id: str, message_ts: str) -> st
                        for domain in ('slack.com', 'slack-gov.com'))):
         raise ValueError('Slack returned an invalid permalink')
     return permalink
+
+
+async def list_thread_replies(user_token: str, channel_id: str, thread_ts: str) -> list[dict]:
+    """Every message in a thread except the parent, oldest first.
+
+    Slack pages replies 1 MB at a time; a case thread is short, but the cursor
+    loop keeps a long hand-written discussion from being half-read.
+    """
+    messages: list[dict] = []
+    cursor = None
+    async with httpx.AsyncClient(timeout=20) as client:
+        while True:
+            params = {'channel': channel_id, 'ts': thread_ts, 'limit': 200}
+            if cursor:
+                params['cursor'] = cursor
+            response = await client.get(
+                'https://slack.com/api/conversations.replies',
+                headers={'Authorization': f'Bearer {user_token}'},
+                params=params,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not data.get('ok'):
+                raise RuntimeError(f"Slack replies failed: {data.get('error', 'unknown_error')}")
+            messages.extend(m for m in data.get('messages') or [] if m.get('ts') != thread_ts)
+            cursor = (data.get('response_metadata') or {}).get('next_cursor')
+            if not cursor:
+                break
+    return messages
+
+
+async def delete_message(user_token: str, channel_id: str, message_ts: str) -> dict:
+    """Delete one message; return Slack's answer instead of raising.
+
+    `cant_delete_message` (a reply written by another person) is a normal
+    outcome here, so the caller can report what stayed instead of failing.
+    """
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(
+            'https://slack.com/api/chat.delete',
+            headers={'Authorization': f'Bearer {user_token}',
+                     'Content-Type': 'application/json; charset=utf-8'},
+            json={'channel': channel_id, 'ts': message_ts},
+        )
+        response.raise_for_status()
+        return response.json()
 
 async def upload_file(user_token: str, channel_id: str, filename: str,
                       content: bytes, *, thread_ts: str | None = None,

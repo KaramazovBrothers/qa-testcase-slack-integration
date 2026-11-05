@@ -1,6 +1,5 @@
 import { $, state } from '../store.js';
 import { translate } from '../translations/translations.js';
-import { mentionPayload } from '../ui/mentions.js';
 
 const copyStatusTimers = new WeakMap();
 
@@ -53,7 +52,6 @@ export function renderCases(cases) {
   const output = $('output');
   output.innerHTML = '';
   $('count').textContent = String(cases.length);
-  const regionCode = $('region').value;
 
   cases.forEach((item, index) => {
     const card = element('div', { className: 'case' });
@@ -89,9 +87,6 @@ export function renderCases(cases) {
     });
 
     const status = statusLine();
-    const tagPreview = element('div', { className: 'case-tags' });
-    tagPreview.style.marginBottom = '8px';
-    tagPreview.textContent = (state.mentionEdits[regionCode] || []).filter(Boolean).join(' ');
 
     const requestLabel = element('label', {
       text: translate('Обращение в Slack для этого кейса'),
@@ -137,7 +132,7 @@ export function renderCases(cases) {
     slackButton.addEventListener('click', () => sendSingleCase(card, status));
 
     head.append(heading, editButton, copyButton, slackButton);
-    card.append(head, status, tagPreview, requestLabel, body, commentLabel);
+    card.append(head, status, requestLabel, body, commentLabel);
     output.appendChild(card);
   });
 }

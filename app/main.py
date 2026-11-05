@@ -16,7 +16,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 from app.mentions import normalize_mentions, format_mentions
 
@@ -112,6 +112,15 @@ class GeneratedCase(BaseModel):
     request_text: Optional[str] = Field(default=None, max_length=2000)
     # Set for WebView cases: the build of this licence rides along in the thread.
     licence: Optional[Literal["com", "pinco", "zazino"]] = None
+
+    @field_validator("licence", mode="before")
+    @classmethod
+    def _blank_licence_is_none(cls, value):
+        # The workspace sends "" for cases that need no APK. An empty string is
+        # not a licence, and rejecting it turned a normal send into a 422.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class SendCasesRequest(BaseModel):

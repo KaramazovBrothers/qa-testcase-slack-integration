@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id), statuses=['Not tested','Passed','Failed','Blocked','Skipped'];
 const uuid=()=>crypto.randomUUID();
-let task=null,currentSet=null,cases=null,accounts=[],draftKey=uuid(),generationKey=null,baseline='',gen,busy=false,searchRevision=0,deletedAccountIds=[],removedSends={};
+let task=null,currentSet=null,cases=null,accounts=[],draftKey=uuid(),generationKey=null,baseline='',gen,busy=false,searchRevision=0,deletedAccountIds=[],removedSends={},foldedCases={};
 // Unsaved work is kept per task for this session only. Saving stays an
 // explicit act: switching tasks parks the draft, it does not write to the DB.
 const drafts=new Map();const DRAFT_LIMIT=20;
@@ -19,15 +19,19 @@ function el(tag,text,className){const node=document.createElement(tag);if(text!=
 function button(text,handler,style='secondary'){const b=el('button',text,style);b.type='button';b.onclick=handler;return b;}
 function field(label,value,type='text'){const l=el('label',label),i=el(type==='textarea'?'textarea':'input');if(type!=='textarea')i.type=type;i.value=value??'';l.append(i);return [l,i];}
 const date=value=>new Date(value).toLocaleString('ru-RU');
-async function api(path,method='GET',body){const r=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
+// A 500 from Starlette is plain text, not JSON: parse defensively so the user
+// sees the HTTP status instead of "Unexpected token 'I', Internal S...".
+async function api(path,method='GET',body){const r=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const raw=await r.text();let data=null;try{data=raw?JSON.parse(raw):null;}catch{data=null;}if(!r.ok){const detail=data&&data.detail;throw Error(typeof detail==='string'?detail:(detail?JSON.stringify(detail):`Ошибка ${r.status} ${r.statusText}`.trim()));}return data;}
 const setPath=()=>`/api/tasks/${task.id}/sets/${currentSet.id}`;
 function payload(){const mentions=mentionValues();return {task_id:task?.id,client_key:draftKey,jira_id:$('jiraId').value,title:$('taskTitle').value,settings:{...gen.snapshot(),mention_edits:{[mentionRegion()]:mentions}},deleted_account_ids:deletedAccountIds,set_id:currentSet?.id,generation_key:generationKey,test_accounts:accounts.map(({id,name,account_id,login,password,kind})=>({id,name,account_id,login,password,kind})),cases:cases?.map(({id,client_key,title,text,comment,request_text,status,qa_comment,bug_links,test_account_id})=>({id,client_key,title,text,comment,request_text,status,qa_comment,bug_links,test_account_id,removed_slack_sends:removedSends[client_key]||[]}))??null};}
 const signature=()=>gen?JSON.stringify(payload()):'';
 const dirty=()=>signature()!==baseline;
 let markedSignature='';function mark(){const current=signature();if(current===baseline){notice('Изменения совпадают с сохранёнными.');return;}if(current===markedSignature)return;markedSignature=current;notice('Есть несохранённые изменения · нажмите «Сохранить».');}
 async function action(fn){if(busy)return;busy=true;$('workspace').inert=true;try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').inert=false;}}
-async function listTasks(){const revision=++searchRevision,items=await api('/api/tasks?q='+encodeURIComponent($('search').value)+($('onlyActive').checked?'&active=true':''));if(revision!==searchRevision)return;$('tasks').replaceChildren();for(const item of items){const b=button('',()=>action(()=>selectTask(item.id)),'task');b.dataset.id=item.id;b.dataset.status=item.status||'active';b.setAttribute('aria-current',String(task?.id===item.id));if(item.jira_id)b.append(el('strong',item.jira_id));b.append(el('span',item.title||'Без названия'));if(item.status==='done')b.append(el('em','done'));$('tasks').append(b);}}
-function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;removedSends={};cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;linkAccounts();renderMentions();renderCases();}
+async function listTasks(){const revision=++searchRevision,items=await api('/api/tasks?q='+encodeURIComponent($('search').value)+($('onlyActive').checked?'&active=true':''));if(revision!==searchRevision)return;$('tasks').replaceChildren();for(const item of items){const b=button('',()=>action(()=>selectTask(item.id)),'task');b.dataset.id=item.id;b.dataset.status=item.status||'active';b.setAttribute('aria-current',String(task?.id===item.id));if(item.jira_id)b.append(el('strong',item.jira_id));b.append(el('span',item.title||'Без названия'));if(item.status==='done')b.append(el('em','done'));
+// Drawn from state, not patched afterwards: the list is rebuilt after every save.
+const count=taskReplies[String(item.id)];if(count){b.dataset.replies='new';b.append(el('span',count>1?`+${count}`:'новый ответ','replies-dot'));}
+$('tasks').append(b);}}function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;removedSends={};replyBaseline={};caseReplies={};cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;for(const c of cases||[])if(c.id)setReplyBaseline(c);linkAccounts();renderMentions();renderCases();restoreTaskReplies();if(value&&value.id){startReplyStream();}else{stopReplyStream();}}
 async function listSets(){return task?await api(`/api/tasks/${task.id}/sets`):[];}
 function showTask(){ $('jiraId').value=task?.jira_id||'';$('taskTitle').value=task?.title||'';$('deleteTask').hidden=!task;const toggle=$('toggleStatus');toggle.hidden=!task;const done=task?.status==='done';toggle.textContent='Статус: '+(task?.status||'active');toggle.classList.toggle('done',!!done);toggle.setAttribute('aria-pressed',String(!!done));toggle.title=done?'Вернуть в активные':'Пометить как done';$('dates').textContent=task?`Изменена ${date(task.updated_at)}`:'Черновик · ещё не сохранён';gen.lockRegion(!!task?.region);}
 async function selectTask(id){stash();const key='task:'+id;const saved=unstash(key);
@@ -40,9 +44,14 @@ function currentLicence(){const licence=gen&&gen.snapshot?gen.snapshot().fields.
 // Only a case that runs in the WebView shell needs the APK; the licence
 // alone would attach a build to native and HPP cases too.
 function isWebviewCase(record){return /^Platform:\s*WebView\s*$/im.test(String(record&&record.text||''));}
-function caseLicence(record){return isWebviewCase(record)?currentLicence():'';}
+function caseLicence(record){const licence=isWebviewCase(record)?currentLicence():'';return licence||null;}
 function name(){return task?.jira_id||task?.title||'Без названия';}
-function restoreDraft(draft){task=draft.task||task;draftKey=draft.task?.client_key||draftKey;accounts=draft.accounts;deletedAccountIds=draft.deletedAccountIds;removedSends=draft.removedSends;currentSet=draft.currentSet;generationKey=draft.generationKey;mentionEdits=draft.mentionEdits;gen.restore(draft.settings);restoreMentions(draft.settings);gen.setAccountOptions(accounts);showTask();cases=draft.cases;linkAccounts();renderMentions();renderCases();renderAccounts();listSets();baseline=draft.baseline;markedSignature='';}
+function restoreDraft(draft){task=draft.task||task;draftKey=draft.task?.client_key||draftKey;accounts=draft.accounts;deletedAccountIds=draft.deletedAccountIds;removedSends=draft.removedSends;currentSet=draft.currentSet;generationKey=draft.generationKey;mentionEdits=draft.mentionEdits;gen.restore(draft.settings);restoreMentions(draft.settings);gen.setAccountOptions(accounts);showTask();cases=draft.cases;linkAccounts();renderMentions();renderCases();renderAccounts();listSets();baseline=draft.baseline;markedSignature='';
+// A restored draft keeps the same set, so replies must keep arriving too.
+// The reply baseline is NOT reset: existing answers stay history, not news.
+for(const c of cases||[])if(c.id&&!(c.id in replyBaseline))setReplyBaseline(c);
+restoreCaseReplies();restoreTaskReplies();
+if(currentSet&&currentSet.id){startReplyStream();}else{stopReplyStream();}}
 async function newDraft(check=true){stash();task=null;accounts=[];deletedAccountIds=[];draftKey=uuid();gen.restore();mentionEdits={};renderMentions();accounts=await gen.loadAccounts();showTask();adoptSet(null);renderAccounts();await listSets();baseline=signature();markedSignature='';await listTasks();notice('Черновик готов. Заполните параметры и сгенерируйте кейсы.');}
 async function saveWork(){importAccounts();const result=await api('/api/tasks/save','POST',payload());task=result.task;accounts=task.test_accounts;deletedAccountIds=[];gen.setAccountOptions(accounts);adoptSet(result.set);showTask();renderAccounts();await listSets();baseline=signature();markedSignature='';drafts.delete(draftKey);await listTasks();notice('Сохранено: настройки, аккаунты и текущие кейсы.');}
 function renderCasePickers(){for(const card of $('cases').children){const id=card.dataset.caseId;const record=(cases||[]).find(c=>String(c.id||c.client_key)===id);const select=card.querySelector('select[aria-label="Тестовый аккаунт"]');if(!record||!select)continue;const current=record.test_account_id||'';select.replaceChildren();const none=el('option','Без назначения');none.value='';select.append(none);for(const a of accounts){const o=el('option',`${a.name} · ${a.account_id||a.login||'без ID'}`);o.value=a.id;select.append(o);}select.value=accounts.some(a=>a.id===current)?current:'';}}
@@ -107,20 +116,168 @@ renderMentions();}
 function restoreMentions(settings){mentionEdits=JSON.parse(JSON.stringify((settings&&settings.mention_edits)||{}));renderMentions();}
 function renderCounts(){$('counts').replaceChildren(...statuses.map(s=>el('span',`${s}: ${(cases||[]).filter(c=>c.status===s).length}`)));}
 function renderCases(){ $('cases').replaceChildren();renderCounts();$('sendSet').disabled=!cases?.length;$('setInfo').textContent=currentSet?`Сохранённый набор · ${date(currentSet.created_at)}. Изменения применяются кнопкой «Сохранить».`:'Изменения кейсов сохраняются кнопкой «Сохранить».';for(const record of cases||[]){const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id||record.client_key;const heading=el('h3',record.title),body=el('pre',record.text);heading.setAttribute('aria-label','Название кейса');body.setAttribute('aria-label','Текст кейса');const [rl,request]=field('Обращение в Slack',record.request_text,'textarea'),[cl,comment]=field('Дополнительные инструкции для Slack',record.comment,'textarea');request.readOnly=comment.readOnly=true;request.maxLength=2000;comment.maxLength=20000;
-const edit=button('Редактировать кейс и текст для Slack',()=>{const editing=edit.getAttribute('aria-pressed')!=='true';edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать кейс и текст для Slack';heading.contentEditable=body.contentEditable=editing?'plaintext-only':'false';request.readOnly=comment.readOnly=!editing;if(editing)body.focus();});edit.setAttribute('aria-pressed','false');const actions=el('div',undefined,'row');actions.append(edit,button('Удалить кейс',()=>{if(!confirm('Удалить кейс? Удаление из БД применится после «Сохранить».'))return;cases=cases.filter(c=>c!==record);renderCases();mark();},'danger'),button('Отправить в Slack',()=>send([record.client_key])));
+const edit=button('Редактировать кейс и текст для Slack',()=>{const editing=edit.getAttribute('aria-pressed')!=='true';edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать кейс и текст для Slack';heading.contentEditable=body.contentEditable=editing?'plaintext-only':'false';request.readOnly=comment.readOnly=!editing;if(editing)body.focus();});edit.setAttribute('aria-pressed','false');
+// Long cases push everything else off the screen; collapse the text, the Slack
+// request and the extra instructions, keeping the controls at hand.
+const key=String(record.id||record.client_key);
+const collapse=button('Свернуть кейс',()=>{const folded=collapse.dataset.folded!=='true';collapse.dataset.folded=String(folded);collapse.textContent=folded?'Развернуть кейс':'Свернуть кейс';long.hidden=folded;if(folded)foldedCases[key]=true;else delete foldedCases[key];});
+const actions=el('div',undefined,'row');actions.append(edit,collapse,button('Удалить кейс',()=>{if(!confirm('Удалить кейс? Удаление из БД применится после «Сохранить».'))return;cases=cases.filter(c=>c!==record);renderCases();mark();},'danger'),button('Отправить в Slack',()=>send([record.client_key])));
 const label=el('label','Тестовый аккаунт'),select=el('select');select.setAttribute('aria-label','Тестовый аккаунт');const none=el('option','Без назначения');none.value='';select.append(none);for(const a of accounts){const o=el('option',`${a.name} · ${a.account_id||a.login||'без ID'}`);o.value=a.id;select.append(o);}select.value=record.test_account_id||'';select.onchange=()=>{const chosen=accounts.find(a=>a.id===select.value)||null;if(select.value&&!chosen){notice('Аккаунт не найден в списке региона. Обновите задачу.',true);return;}record.test_account_id=chosen?chosen.id:null;if(chosen)applyAccount(record,chosen);body.textContent=record.text;mark();};label.append(select);
 const statusLabel=el('label','Статус'),status=el('select');statuses.forEach(s=>status.append(el('option',s)));status.value=record.status;status.onchange=()=>{record.status=status.value;card.dataset.status=record.status;renderCounts();applyFilter();mark();};statusLabel.append(status);
 const [ql,qa]=field('Личный комментарий',record.qa_comment,'textarea');qa.maxLength=20000;
 heading.oninput=()=>{record.title=heading.innerText;mark();};body.oninput=()=>{record.text=body.innerText;mark();};request.oninput=()=>{record.request_text=request.value;mark();};comment.oninput=()=>{record.comment=comment.value;mark();};qa.oninput=()=>{record.qa_comment=qa.value;mark();};
-const apk=el('div',undefined,'apk-note');renderApkNote(apk,record);const history=el('div',undefined,'slack-history');renderHistory(record,history);card.append(actions,label,heading,body,rl,cl,statusLabel,ql,apk,history);$('cases').append(card);}applyFilter();}
+const apk=el('div',undefined,'apk-note');renderApkNote(apk,record);const history=el('div',undefined,'slack-history');renderHistory(record,history);
+const long=el('div',undefined,'case-long');long.append(body,rl,cl);
+// A card rebuilt by renderCases() must stay folded if the operator folded it.
+if(foldedCases[key]){collapse.dataset.folded='true';collapse.textContent='Развернуть кейс';long.hidden=true;}
+else collapse.dataset.folded='false';
+card.append(actions,label,heading,long,statusLabel,ql,apk,history);$('cases').append(card);}applyFilter();restoreCaseReplies();}
 function applyFilter(){for(const card of $('cases').children)card.hidden=!!$('statusFilter').value&&card.dataset.status!==$('statusFilter').value;}
 // A WebView case carries the build of its licence; say which one, and when
 // it was uploaded, before the tester sends anything.
 async function renderApkNote(host,record){host.replaceChildren();const licence=caseLicence(record);if(!licence){host.hidden=true;return;}host.hidden=false;try{const info=await api('/api/webview/apk-for/'+licence);if(!info.available){host.append(el('span',`WebView APK (${licence}): сборка не загружена — файл не прикрепится.`));host.classList.add('warn');return;}host.classList.remove('warn');host.append(el('span',`К сообщению будет прикреплён файл: ${info.filename} · сборка от ${date(info.uploaded_at)}`));}catch(e){host.textContent='Не удалось узнать сборку APK: '+e.message;}}
-function renderHistory(record,host){host.replaceChildren();const gone=removedSends[record.client_key]||[];for(const delivery of record.slack_sends||[]){if(gone.includes(delivery.id))continue;const row=el('p',date(delivery.sent_at)+' · ');if(delivery.permalink){const a=el('a','Открыть в Slack');a.href=delivery.permalink;a.target='_blank';a.rel='noopener noreferrer';row.append(a);}else{row.append(el('span','Отправлено, ссылка пока недоступна. '),button('Получить ссылку',()=>action(async()=>{await api(`${setPath()}/cases/${record.id}/slack-sends/${delivery.id}/permalink`,'POST');await refreshHistory();notice('Обновлена история ссылок. Сообщения повторно не отправлялись.');})));}row.append(button('Удалить',()=>{removedSends[record.client_key]=[...(removedSends[record.client_key]||[]),delivery.id];renderHistory(record,host);mark();},'danger'));host.append(row);}renderReplies(record,host);}
-function renderReplies(record,host){const replies=record.slack_replies||[];if(!replies.length)return;const box=el('div',undefined,'slack-replies');box.append(el('strong','Ответы в треде · '+replies.length));for(const reply of replies){const row=el('p',date(reply.received_at)+' · '+(reply.author_name||reply.author_id||'Slack')+': ');row.append(el('span',reply.text||'(без текста)'));box.append(row);}host.append(box);}
-async function refreshHistory(){if(!currentSet)return;const result=await api(setPath());for(const c of cases||[]){c.slack_sends=result.cases.find(r=>r.id===c.id)?.slack_sends||[];const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}await refreshReplies();}
-async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{c.slack_replies=await api(`${setPath()}/cases/${c.id}/slack-replies`);const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}catch(e){}}}
+function renderHistory(record,host){
+  host.replaceChildren();
+  const gone=removedSends[record.client_key]||[];
+  const sends=(record.slack_sends||[]).filter(d=>!gone.includes(d.id));
+  if(!sends.length){renderReplies(record,host);return;}
+  // Newest first: a case can be sent many times and the latest send is what matters.
+  const list=el('div',undefined,'sends');
+  list.append(el('small',sends.length===1?'1 отправка':'Отправок: '+sends.length));
+  for(const delivery of sends){
+    const row=el('p',date(delivery.sent_at)+' · ');
+    if(delivery.permalink){
+      const a=el('a','Открыть в Slack');
+      a.href=delivery.permalink;a.target='_blank';a.rel='noopener noreferrer';
+      row.append(a);
+    }else{
+      row.append(el('span','Ссылка недоступна. '));
+      row.append(button('Получить ссылку',()=>action(async()=>{
+        await api(`${setPath()}/cases/${record.id}/slack-sends/${delivery.id}/permalink`,'POST');
+        await refreshHistory();
+        notice('Обновлена история ссылок. Сообщения повторно не отправлялись.');
+      })));
+    }
+    row.append(button('Удалить',()=>action(async()=>{
+      if(!confirm('Удалить сообщение и весь тред из Slack? Восстановить не получится.'))return;
+      try{
+        const deleted=await api(`${setPath()}/cases/${record.id}/slack-sends/${delivery.id}`,'DELETE');
+        notice(`Удалено из Slack сообщений: ${deleted.deleted_messages}.`);
+      }catch(e){
+        notice(e.message,true);
+        return;
+      }
+      removedSends[record.client_key]=[...(removedSends[record.client_key]||[]),delivery.id];
+      await refreshHistory();
+      mark();
+    }),'danger'));
+    list.append(row);
+  }
+  host.append(list);
+  renderReplies(record,host);
+}
+function renderReplies(record,host){
+  const replies=record.slack_replies||[];
+  if(!replies.length)return;
+  const box=el('div',undefined,'slack-replies');
+  const head=el('div',undefined,'slack-replies-head');
+  head.append(el('strong','Ответы в треде · '+replies.length));
+  // The only control that changes the read state. Clicking anywhere else in the
+  // card must leave it alone: the operator may be editing the case text.
+  const read=hasNews(record);
+  const toggle=button(
+    read?'Прочитано':'Отметить как непрочитанное',
+    ()=>read?markRepliesRead(record):markRepliesUnread(record),
+    'replies-toggle',
+  );
+  // Only the unread state is highlighted; a read thread keeps the plain chip.
+  toggle.dataset.state=read?'unread':'read';
+  head.append(toggle);
+  box.append(head);
+  for(const reply of replies){
+    const row=el('p',date(reply.received_at)+' · '+(reply.author_name||reply.author_id||'Slack')+': ');
+    row.append(el('span',reply.text||'(без текста)'));
+    box.append(row);
+  }
+  host.append(box);
+}
+// Replies known when the set was opened. Anything at or below this ts is
+// history, not news: reloading or saving must not light up a case.
+let replyBaseline={};
+function setReplyBaseline(record){const last=(record.slack_replies||[]).reduce((max,r)=>Math.max(max,parseFloat(r.ts)||0),0);replyBaseline[record.id]=last;}
+function isNewReply(record,reply){const known=replyBaseline[record.id]||0;return (parseFloat(reply&&reply.ts)||0)>known;}
+async function refreshHistory(){if(!currentSet)return;const result=await api(setPath());for(const c of cases||[]){c.slack_sends=result.cases.find(r=>r.id===c.id)?.slack_sends||[];const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}await refreshReplies();restoreTaskReplies();}
+async function refreshReplies(){for(const c of cases||[]){if(!c.id)continue;try{const replies=await api(`${setPath()}/cases/${c.id}/slack-replies`);const fresh=replies.filter(r=>isNewReply(c,r));c.slack_replies=replies;if(fresh.length){setReplyBaseline(c);markNewReplies(c,fresh.length);}else if(!(c.id in replyBaseline)){setReplyBaseline(c);}const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}catch(e){}}}
+// Replies arrive without a page reload. The backend pushes them over SSE the
+// moment Slack is stored; a slow timer is only a safety net for a dropped
+// connection, so a reply never waits for a poll tick.
+let replyTimer=null,replyStream=null;
+// Replies seen per task while it is open, so the sidebar entry can glow too.
+let taskReplies={};
+/** Replies seen per case, so a card keeps its badge when renderCases() runs again. */
+let caseReplies={};
+/** True while a case carries replies the operator has not acknowledged yet. */
+function hasNews(record){return !!caseReplies[String(record.id)];}
+function startReplyPolling(){if(replyTimer)return;replyTimer=setInterval(()=>{if(document.hidden||!currentSet||busy)return;if(replyStream&&replyStream.readyState===EventSource.OPEN)return;refreshReplies().catch(()=>{});},120000);}
+function stopReplyStream(){if(replyStream){replyStream.close();replyStream=null;}}
+function startReplyStream(){stopReplyStream();if(!currentSet||typeof EventSource==='undefined')return;
+replyStream=new EventSource(`${setPath()}/stream`);
+replyStream.onmessage=event=>{let data;try{data=JSON.parse(event.data);}catch{return;}if(data.type!=='reply')return;
+const caseIds=(data.case_ids||[]).map(Number);
+for(const c of cases||[]){if(!caseIds.includes(Number(c.id)))continue;const entry={ts:data.ts,text:data.text,author_id:data.author,received_at:data.received_at};const known=replyBaseline[c.id]||0;c.slack_replies=[...(c.slack_replies||[]),entry];if((parseFloat(entry.ts)||0)>known){replyBaseline[c.id]=parseFloat(entry.ts)||0;markNewReplies(c,1);}const host=document.querySelector(`[data-case-id="${c.id}"] .slack-history`);if(host)renderHistory(c,host);}}
+replyStream.onerror=()=>{/* EventSource reconnects on its own; the timer covers downtime. */};
+}
+function markNewReplies(record,fresh){const id=String(record.id);caseReplies[id]=(caseReplies[id]||0)+fresh;const card=document.querySelector(`[data-case-id="${record.id}"]`);paintCaseReplies(record,card,fresh);
+// The «Прочитано» action lives inside the thread block, so redraw it here too:
+// the badge alone would leave the operator without a way to dismiss it.
+const host=card?.querySelector('.slack-history');if(host)renderHistory(record,host);
+// The sidebar must say the same thing: a reply belongs to the open task too.
+// The id comes from the payload first: `task` is still null while `selectTask`
+// awaits its request, and a reply can land exactly in that window.
+const taskId=currentTaskId();  if(taskId){const key=String(taskId);taskReplies[key]=(taskReplies[key]||0)+fresh;
+    // `listTasks()` is async: a request started before this point would rebuild
+    // `#tasks` and drop the dot, so re-render from the saved counts afterwards.
+    markTaskReplies(key,taskReplies[key]);
+    listTasks();}
+notice(`Новые ответы в Slack: ${fresh}.`);}
+/** The id of the task the open set belongs to, even if `task` is stale. */
+function currentTaskId(){
+  // `currentSet` comes straight from the API and always carries its task id,
+  // so it survives a reload or a draft restore where `task` may be stale.
+  if(currentSet?.task_id!=null)return String(currentSet.task_id);
+  if(task?.id!=null)return String(task.id);
+  const node=document.querySelector('#tasks .task[aria-current="true"]');
+  return node?.dataset.id||null;
+}
+function paintCaseReplies(record,card,fresh){if(!card)return;const count=fresh??caseReplies[String(record.id)];if(!count)return;card.dataset.replies='new';const heading=card.querySelector('h3');if(heading&&!heading.querySelector('.replies-badge')){const badge=el('span',(count>1?`+${count}`:'новый ответ')+' · Slack','replies-badge');heading.append(badge);}}/** Repaint case badges lost when renderCases() rebuilt the cards. */
+function restoreCaseReplies(){for(const c of cases||[]){if(!c.id)continue;const card=document.querySelector(`[data-case-id="${c.id}"]`);paintCaseReplies(c,card);}}
+function markTaskReplies(taskId,count){const node=document.querySelector(`#tasks .task[data-id="${taskId}"]`);if(!node)return;node.dataset.replies='new';let dot=node.querySelector('.replies-dot');if(!dot){dot=el('span','','replies-dot');node.append(dot);}dot.textContent=count>1?`+${count}`:'новый ответ';}
+/** Paint every remembered task mark; call after the list is rebuilt. */
+function restoreTaskReplies(){for(const [key,count] of Object.entries(taskReplies)){if(count)markTaskReplies(key,count);}}
+function clearTaskReplies(taskId){const key=String(taskId);delete taskReplies[key];const node=document.querySelector(`#tasks .task[data-id="${taskId}"]`);if(!node)return;delete node.dataset.replies;node.querySelector('.replies-dot')?.remove();}
+function clearRepliesMark(record){delete caseReplies[String(record.id)];const card=document.querySelector(`[data-case-id="${record.id}"]`);if(card){delete card.dataset.replies;card.querySelector('.replies-badge')?.remove();}}
+/** Mark every reply of one case as read: badge, sidebar mark and the button. */
+function markRepliesRead(record){
+  clearRepliesMark(record);
+  // The task entry only stays lit while some case still has news.
+  const taskId=currentTaskId();
+  if(taskId&&!Object.keys(caseReplies).length)clearTaskReplies(taskId);
+  const host=document.querySelector(`[data-case-id="${record.id}"] .slack-history`);
+  if(host)renderHistory(record,host);
+}
+/** Put the news mark back: the thread still has replies worth another look. */
+function markRepliesUnread(record){
+  caseReplies[String(record.id)]=1;
+  const card=document.querySelector(`[data-case-id="${record.id}"]`);
+  paintCaseReplies(record,card,1);
+  const taskId=currentTaskId();
+  if(taskId){
+    taskReplies[String(taskId)]=(taskReplies[String(taskId)]||0)+1;
+    markTaskReplies(String(taskId),taskReplies[String(taskId)]);
+  }
+  const host=card?.querySelector('.slack-history');
+  if(host)renderHistory(record,host);
+}
 /**
  * Header of a manually added case, built by the generator from its own tables.
  * The workspace cannot compute currency or platform: they come from the region
@@ -179,4 +336,9 @@ function showScreen(which){const web=which==='webview';$('tasksBlock').hidden=we
 $('openWebview').onclick=()=>{showScreen('webview');loadApks().catch(e=>apkProblem(e.message));loadApkPeople().catch(()=>{});};
 $('closeWebview').onclick=()=>showScreen('tasks');
 $('apkUpload').onclick=()=>action(uploadApk);$('requestBuild').onclick=()=>action(requestBuild);
-(async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();await loadMentions();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();})().catch(e=>notice(e.message,true));
+(async()=>{gen=await generatorReady;await gen.ready;gen.configure({beforeGenerate:()=>!cases?.length||confirm('Заменить текущие кейсы новой генерацией? Изменения будут записаны по кнопке «Сохранить».'),onGenerated:generated,beforeRegionChange:()=>!cases?.length||confirm('Сменить регион и сбросить сгенерированные кейсы?'),onRegionChange:()=>action(async()=>{accounts=await gen.loadAccounts();deletedAccountIds=[];adoptSet(null);renderAccounts();await loadMentions();notice('Загружены пользователи выбранного региона.');})});await newDraft(false);await loadMentions();await slackStatus();startReplyPolling();})().catch(e=>notice(e.message,true));
+// Opening a case clears its "new replies" badge; the replies stay in the list.
+$('cases').addEventListener('click',event=>{
+  // The read state belongs to its own button: a click on the card may be an
+  // edit, a status change or a scroll, and none of them mean «я посмотрел».
+});

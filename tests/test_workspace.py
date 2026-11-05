@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
-from app import main, storage
+from app import main, storage, slack_history
 from app.slack_oauth import build_authorize_url
 
 
@@ -47,6 +47,26 @@ class WorkspaceTests(unittest.TestCase):
         r=self.client.post(f'/api/tasks/{task}/sets',json=self.payload())
         self.assertEqual(r.status_code,201,r.text)
         return r.json()
+
+    def _send_once(self):
+        """Record one Slack send through the real endpoint and remember its IDs."""
+        task=self.task();saved=self.save(task)
+        self.task_id=task;self.set_id=saved['id'];self.case_id=saved['cases'][0]['id']
+        payload={key:saved[key] for key in ['region','operation','mention_users']}
+        payload['cases']=[{**{key:saved['cases'][0][key] for key in ['title','text','request_text']},
+                           'comment':'', 'case_ids':[self.case_id]}]
+        sender=AsyncMock(side_effect=[{'ts':'123.0','channel':'C_TEST'},
+                                      {'ts':'123.1','channel':'C_TEST'}])
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(main,'get_slack_route',return_value=('C_TEST',[])), \
+             patch.object(main,'post_message',sender), \
+             patch.object(slack_history,'get_permalink',AsyncMock(side_effect=RuntimeError('no link'))):
+            response=self.client.post('/slack/send-cases',json=payload)
+            self.assertEqual(response.status_code,200,response.text)
+        with storage.connection() as db:
+            row=db.execute('SELECT id FROM slack_sends ORDER BY id DESC LIMIT 1').fetchone()
+        self.assertIsNotNone(row,'send was not recorded')
+        return row[0]
 
     def test_crud_search_validation(self):
         task=self.task('qa-123')
@@ -146,6 +166,92 @@ class WorkspaceTests(unittest.TestCase):
             save.assert_called_once_with(storage.LOCAL_USER_ID,'fake-user',slack_user_id='U_FAKE',team_id='T_FAKE',scopes='chat:write')
             # State is single use: replaying the same callback must fail.
             self.assertEqual(self.client.get('/slack/oauth/callback?state=test-state&code=fake').status_code,400)
+
+    def test_blank_licence_is_accepted(self):
+        """The workspace sends "" for cases that need no APK; that must not be a 422."""
+        task=self.task();saved=self.save(task)
+        payload={key:saved[key] for key in ['region','operation','mention_users']}
+        base={key:saved['cases'][0][key] for key in ['title','text','comment','request_text']}
+        payload['cases']=[{**base,'licence':''}]
+        sender=AsyncMock(return_value={'ts':'123.2'})
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'),patch.object(main,'get_slack_route',return_value=('C_TEST',[])),patch.object(main,'post_message',sender):
+            response=self.client.post('/slack/send-cases',json=payload)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['sent'],1)
+
+    def test_delete_send_removes_thread_from_slack(self):
+        """Our own thread (parent + app replies) is deleted in Slack, then locally."""
+        send_id=self._send_once()
+        deleted=[]
+        async def fake_delete(token,channel,ts):
+            deleted.append(ts);return {'ok':True}
+        replies=[{'ts':'123.1'}]  # body message; the parent is deleted separately
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=replies)), \
+             patch.object(slack_history,'delete_message',fake_delete):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['deleted_messages'],2)
+        self.assertEqual(deleted,['123.1','123.1'])
+        with storage.connection() as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_delete_send_refuses_when_a_person_replied(self):
+        """A human reply blocks deletion entirely: nothing is removed in Slack."""
+        send_id=self._send_once()
+        replies=[{'ts':'123.3','user':'U_HUMAN','text':'привет'}]
+        deleter=AsyncMock(return_value={'ok':True})
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=replies)), \
+             patch.object(slack_history,'delete_message',deleter):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,409,response.text)
+        self.assertIn('ответы людей',response.json()['detail'])
+        self.assertEqual(deleter.await_count,0)
+        with storage.connection() as db:
+            self.assertIsNotNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_delete_send_rejects_foreign_case(self):
+        send_id=self._send_once()
+        with storage.connection() as db:
+            other=db.execute('SELECT id FROM test_cases WHERE id!=?',(self.case_id,)).fetchone()
+        with self.assertRaises(Exception):
+            self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{other[0]}/slack-sends/{send_id}')
+
+    def test_delete_send_when_thread_already_gone_in_slack(self):
+        """A thread deleted by hand must not fail: only the local record goes."""
+        send_id=self._send_once()
+        boom=AsyncMock(side_effect=RuntimeError('Slack replies failed: thread_not_found'))
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',boom):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertTrue(response.json()['already_gone'])
+        self.assertEqual(response.json()['deleted_messages'],0)
+        with storage.connection() as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_delete_send_ignores_message_not_found(self):
+        """A message already removed in Slack is skipped, the rest still runs."""
+        send_id=self._send_once()
+        async def deleter(token,channel,ts):
+            return {'ok': False, 'error': 'message_not_found'}
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=[{'ts':'123.1'}])), \
+             patch.object(slack_history,'delete_message',deleter):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,200,response.text)
+        with storage.connection() as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_unknown_licence_is_still_rejected(self):
+        task=self.task();saved=self.save(task)
+        payload={key:saved[key] for key in ['region','operation','mention_users']}
+        base={key:saved['cases'][0][key] for key in ['title','text','comment','request_text']}
+        payload['cases']=[{**base,'licence':'other'}]
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'):
+            response=self.client.post('/slack/send-cases',json=payload)
+        self.assertEqual(response.status_code,422)
 
 
 if __name__=='__main__':
