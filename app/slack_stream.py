@@ -4,19 +4,68 @@ Polling made the UI lag behind Slack by up to one interval. The Events API
 already tells us the moment a reply lands, so the workspace subscribes over
 Server-Sent Events and redraws immediately.
 
-The bus is deliberately tiny and process-local: the app is a single loopback
-server for one user, and a reply is only useful to that user's open tab.
+An in-memory queue alone only works while every request is handled by the same
+process. Slack posts events to whichever worker it reaches, so the reply is also
+filed in `slack_stream_events`; a stream replays what it missed on connect and
+the Events API worker broadcasts to whoever is listening to it.
 """
 from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator
+
+from app import storage
 
 # Subscribers are plain asyncio queues. A slow or vanished tab must never block
 # the Events API, so publishing never awaits: it drops the event for a full queue.
 _subscribers: dict[asyncio.Queue, asyncio.AbstractEventLoop | None] = {}
 _MAX_QUEUE = 100
+# How long a stream replays replies it did not hear while it was disconnected.
+REPLAY_WINDOW_SECONDS = 2 * 60
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def file_event(event: dict) -> None:
+    """Keep a published event so a stream on another worker can replay it."""
+    event_id = event.get("event_id")
+    if not event_id:
+        return
+    with storage.connection() as db:
+        db.execute(
+            """INSERT OR IGNORE INTO slack_stream_events(event_id,payload,created_at)
+               VALUES(?,?,?)""",
+            (str(event_id), json.dumps(event, ensure_ascii=False), _now()),
+        )
+
+
+def replay(since_iso: str | None) -> list[dict]:
+    """Events still worth replaying to a stream opened at `since_iso`."""
+    floor = (datetime.now(timezone.utc) - timedelta(seconds=REPLAY_WINDOW_SECONDS)).isoformat()
+    start = since_iso if since_iso and since_iso > floor else floor
+    with storage.connection() as db:
+        rows = db.execute(
+            "SELECT payload FROM slack_stream_events WHERE created_at>=? ORDER BY id",
+            (start,),
+        ).fetchall()
+    events = []
+    for row in rows:
+        try:
+            events.append(json.loads(row["payload"]))
+        except (TypeError, ValueError):
+            continue
+    return events
+
+
+def prune(before_iso: str | None = None) -> int:
+    """Drop events older than the replay window; returns the number deleted."""
+    floor = before_iso or (datetime.now(timezone.utc) - timedelta(seconds=REPLAY_WINDOW_SECONDS)).isoformat()
+    with storage.connection() as db:
+        return db.execute("DELETE FROM slack_stream_events WHERE created_at<?", (floor,)).rowcount
 
 
 def subscribe() -> asyncio.Queue:
@@ -62,11 +111,15 @@ def publish(event: dict) -> None:
         except RuntimeError:
             # The loop behind that tab is already closed.
             unsubscribe(queue)
+    # Persist outside the subscriber loop: another worker owns the connection
+    # that holds the open tab, and it replays this event on its next connect.
+    file_event(event)
 
 
-def publish_reply(send_id: int, case_ids: list[int], reply: dict) -> None:
+def publish_reply(send_id: int, case_ids: list[int], reply: dict, event_id: str | None = None) -> None:
     publish({
         "type": "reply",
+        "event_id": event_id or f"reply-{send_id}-{reply.get('ts')}",
         "send_id": send_id,
         "case_ids": case_ids,
         "ts": reply.get("ts"),
@@ -76,10 +129,13 @@ def publish_reply(send_id: int, case_ids: list[int], reply: dict) -> None:
     })
 
 
-async def stream(queue: asyncio.Queue, heartbeat: float = 20.0) -> AsyncIterator[str]:
+async def stream(queue: asyncio.Queue, heartbeat: float = 20.0,
+                 backlog: list[dict] | None = None) -> AsyncIterator[str]:
     """SSE frames for one subscriber; a comment keeps idle proxies awake."""
     try:
         yield "retry: 3000\n\n"
+        for event in backlog or ():
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=heartbeat)

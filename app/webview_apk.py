@@ -8,13 +8,16 @@ The people list belongs to one Slack channel (the WebView request channel), not
 to a region, so it is stored separately from `slack_people`.
 """
 
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
 from app import storage
 
 LICENCES = ("com", "pinco", "zazino")
-CHANNEL = "C07RKCUN132"
+# The deployment decides which channel receives build requests; the original
+# internal channel stays the default so an existing database keeps working.
+CHANNEL = os.getenv("QAHELPER_WEBVIEW_CHANNEL", "C07RKCUN132").strip() or "C07RKCUN132"
 MAX_BYTES = 200 * 1024 * 1024
 
 

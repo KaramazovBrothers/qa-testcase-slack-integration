@@ -404,8 +404,12 @@ async def workspace_stream(task_id: int, set_id: int, user_id: CurrentUserId = s
         require(db,'case_sets',set_id,'AND task_id=?',(task_id,))
 
     queue = slack_stream.subscribe()
+    # Whatever was pushed while this tab was reconnecting (or before another
+    # worker took the Events API call) is replayed first; the live queue then
+    # carries anything newer. Duplicates are harmless: the UI keys replies by ts.
+    backlog = slack_stream.replay(None)
     return StreamingResponse(
-        slack_stream.stream(queue),
+        slack_stream.stream(queue, backlog=backlog),
         media_type='text/event-stream',
         headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'},
     )

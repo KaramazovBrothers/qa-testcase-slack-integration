@@ -21,6 +21,7 @@ from typing import Literal
 from app.mentions import normalize_mentions, format_mentions
 
 from app.slack_client import post_message, upload_file
+from app.slack_client import SlackTokenRejected
 from app import webview_apk
 from app.slack_oauth import build_authorize_url, exchange_code
 from app.slack_routes import get_slack_route
@@ -39,6 +40,12 @@ from app.local_access import LocalAccessMiddleware
 async def lifespan(app):
     storage.initialize()
     yield
+
+
+def mark_token_rejected(exc: SlackTokenRejected, user_id: int):
+    """Forget a token Slack itself refused, so the UI asks to reconnect."""
+    storage.mark_slack_token_invalid(user_id)
+    return HTTPException(status_code=401, detail=str(exc))
 
 
 app = FastAPI(title="QA Testcase Slack Integration", lifespan=lifespan)
@@ -280,13 +287,22 @@ def require_slack_token(user_id: int = storage.LOCAL_USER_ID) -> str:
     return token
 
 
+async def slack_call(coro, user_id: int):
+    """Run one Slack call; a refused token is dropped before the error surfaces."""
+    try:
+        return await coro
+    except SlackTokenRejected:
+        storage.mark_slack_token_invalid(user_id)
+        raise
+
+
 @app.post("/slack/send", response_class=HTMLResponse)
 async def slack_send(text: str = Form(...), user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
     user_token = require_slack_token(user_id)
     channel_id = os.getenv("SLACK_CHANNEL_ID")
     if not channel_id:
         raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
-    result = await post_message(user_token, channel_id, text)
+    result = await slack_call(post_message(user_token, channel_id, text), user_id)
     ts = result.get("ts", "unknown")
     return f'<p>Sent to Slack. ts={ts}</p><p><a href="/">Back</a></p>'
 
@@ -326,6 +342,20 @@ async def slack_events_endpoint(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, **result})
 
 
+@app.exception_handler(SlackTokenRejected)
+async def slack_token_rejected_handler(request: Request, exc: SlackTokenRejected):
+    """A refused token is a reconnect prompt, not a server error.
+
+    Whoever held the token (the current user) sees `reconnect: true`; the token
+    is also dropped by `require_slack_token`, so the next status call already
+    answers `connected: false` and the UI offers the OAuth link again.
+    """
+    return JSONResponse(
+        {"detail": str(exc), "error": exc.error, "reconnect": True},
+        status_code=401,
+    )
+
+
 @app.post("/slack/send-cases")
 async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = storage.LOCAL_USER_ID) -> dict:
     user_token = require_slack_token(user_id)
@@ -355,13 +385,13 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
     for case in payload.cases:
         case_request = case.request_text.strip() if case.request_text is not None else "\n".join(part for part in [request_text, case.title] if part)
         parent_text = " ".join(part for part in [mentions, case_request] if part)
-        parent = await post_message(user_token, channel_id, parent_text or case.title)
+        parent = await slack_call(post_message(user_token, channel_id, parent_text or case.title), user_id)
         thread_ts = parent.get("ts")
         if not thread_ts:
             raise HTTPException(status_code=500, detail="Slack did not return parent message ts")
 
         message = f"{case.title}\n\n{case.text}"
-        posted_case = await post_message(user_token, channel_id, message, thread_ts=thread_ts)
+        posted_case = await slack_call(post_message(user_token, channel_id, message, thread_ts=thread_ts), user_id)
         if case.case_ids:
             # Commit channel/ts before lookup (or the optional instructions reply).
             # `thread_ts` is what Slack sends back on every reply in this thread.
@@ -372,11 +402,11 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
             deliveries.append({**delivery, "case_ids": list(dict.fromkeys(case.case_ids))})
 
         if case.comment.strip():
-            posted_note = await post_message(
+            posted_note = await slack_call(post_message(
                 user_token, channel_id,
                 f"Дополнительная информация:\n{case.comment.strip()}",
                 thread_ts=thread_ts,
-            )
+            ), user_id)
             if case.case_ids:
                 # Our own note must not come back as a "reply".
                 slack_history.append_own_message(send_id, posted_note.get("ts"), user_id)
@@ -384,11 +414,11 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
         if case.licence:
             build = webview_apk.read_apk(case.licence)
             if build:
-                uploaded = await upload_file(
+                uploaded = await slack_call(upload_file(
                     user_token, channel_id, build["filename"], build["content"],
                     thread_ts=thread_ts,
                     initial_comment=f"APK WebView ({case.licence}) · загружен {build['uploaded_at'][:10]}",
-                )
+                ), user_id)
                 if case.case_ids:
                     # The attached file is ours; do not read it back as a reply.
                     for file in uploaded.get("files") or []:

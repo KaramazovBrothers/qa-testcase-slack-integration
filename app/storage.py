@@ -126,6 +126,8 @@ def initialize():
     migrate_task_status(DB_PATH, backup_existing)
     from app.webview_apk_migration import migrate as migrate_webview_apk
     migrate_webview_apk(DB_PATH, backup_existing)
+    from app.slack_stream_migration import migrate as migrate_slack_stream
+    migrate_slack_stream(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 
@@ -159,6 +161,34 @@ def get_slack_token(user_id: int) -> Optional[str]:
     return row["slack_token"] if row and row["slack_token"] else None
 
 
+def ensure_user(provider: str, subject: str, display_name: str = '') -> Optional[int]:
+    """Return the id of this authenticated person, creating the row once.
+
+    A new account starts empty: it sees no tasks until it creates its own, and
+    the migration made the local QA user (id 1) a separate identity on purpose.
+    """
+    provider = (provider or '').strip()
+    subject = (subject or '').strip()
+    if not provider or not subject:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    with connection() as db:
+        row = db.execute(
+            "SELECT id FROM users WHERE auth_provider=? AND auth_subject=?",
+            (provider, subject),
+        ).fetchone()
+        if row is not None:
+            db.execute("UPDATE users SET display_name=?, updated_at=? WHERE id=?",
+                       (display_name or subject, now, row["id"]))
+            return row["id"]
+        cursor = db.execute(
+            """INSERT INTO users(auth_provider,auth_subject,display_name,created_at,updated_at)
+               VALUES(?,?,?,?,?)""",
+            (provider, subject, display_name or subject, now, now),
+        )
+        return cursor.lastrowid
+
+
 def get_slack_identity(user_id: int) -> dict:
     """Token plus Slack identifiers and scopes, for status and diagnostics."""
     with connection() as db:
@@ -185,5 +215,14 @@ def clear_slack_token(user_id: int) -> None:
             """UPDATE users SET slack_token=NULL, slack_user_id=NULL, slack_team_id=NULL,
                    slack_scopes=NULL, slack_token_issued_at=NULL, updated_at=?
                WHERE id=?""",
+            (datetime.now(timezone.utc).isoformat(), user_id),
+        )
+
+
+def mark_slack_token_invalid(user_id: int) -> None:
+    """Keep the row so the UI can say why, but stop using a refused token."""
+    with connection() as db:
+        db.execute(
+            "UPDATE users SET slack_token=NULL, updated_at=? WHERE id=?",
             (datetime.now(timezone.utc).isoformat(), user_id),
         )

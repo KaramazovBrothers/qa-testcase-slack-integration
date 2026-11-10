@@ -2,6 +2,29 @@ import httpx
 
 SLACK_POST_MESSAGE_URL = "https://slack.com/api/chat.postMessage"
 
+# Slack answers these when the person must authorize the app again. They are
+# kept distinct from ordinary failures so the caller can forget the token
+# instead of showing the same error on every request.
+TOKEN_REVOKED_ERRORS = {
+    "token_revoked", "token_expired", "invalid_auth", "not_authed",
+    "account_inactive", "user_is_bot", "missing_scope",
+}
+
+
+class SlackTokenRejected(RuntimeError):
+    """The stored user token is no longer usable; reconnect Slack."""
+
+    def __init__(self, error: str):
+        super().__init__(
+            "Slack token rejected (" + (error or "unknown_error") +
+            "). Reconnect Slack to authorize this app again."
+        )
+        self.error = error
+
+
+def token_rejected(error) -> SlackTokenRejected | None:
+    return SlackTokenRejected(str(error)) if str(error) in TOKEN_REVOKED_ERRORS else None
+
 
 async def post_message(
     user_token: str,
@@ -23,7 +46,8 @@ async def post_message(
         data = response.json()
 
     if not data.get("ok"):
-        raise RuntimeError(f"Slack API failed: {data.get('error', 'unknown_error')}")
+        error = data.get("error", "unknown_error")
+        raise token_rejected(error) or RuntimeError(f"Slack API failed: {error}")
     return data
 
 

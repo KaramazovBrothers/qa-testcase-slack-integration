@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app import storage, webview_apk
 from app.current_user import CurrentUserId
-from app.slack_client import post_message
+from app.slack_client import SlackTokenRejected, post_message
 
 router = APIRouter(prefix="/api/webview", tags=["WebView builds"])
 
@@ -131,7 +131,12 @@ async def request_build(payload: RequestInput, user_id: CurrentUserId = storage.
     # One message lists them all: the same person answers once, in one thread.
     licences = list(dict.fromkeys(payload.licences))
     text = webview_apk.request_message(licences, mentions)
-    result = await post_message(token, webview_apk.CHANNEL, text)
+    try:
+        result = await post_message(token, webview_apk.CHANNEL, text)
+    except SlackTokenRejected:
+        # Same rule as the case sender: a refused token is dropped immediately.
+        storage.mark_slack_token_invalid(user_id)
+        raise
     return {"sent": [{"licences": licences, "ts": result.get("ts"),
                       "channel": webview_apk.CHANNEL}],
             "channel": webview_apk.CHANNEL,

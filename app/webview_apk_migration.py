@@ -13,9 +13,13 @@ rather than sharing the region-keyed `slack_people` directory.
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 11
+# The default channel and its first member now live with the runtime module, so
+# a deployment can point the build requests at its own channel.
+from app.webview_apk import CHANNEL
 
-CHANNEL = "C07RKCUN132"
+SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
+
 DEFAULT_MEMBER = ("U03V08KDU31", "Denys Denysenko")
 
 
@@ -24,9 +28,9 @@ def migrate(path: Path, backup_existing) -> None:
     db.row_factory = sqlite3.Row
     try:
         current = db.execute("PRAGMA user_version").fetchone()[0]
-        if current > SCHEMA_VERSION:
+        if current > LATEST_SCHEMA_VERSION:
             raise RuntimeError(
-                f"Database schema v{current} is newer than this code (v{SCHEMA_VERSION})"
+                f"Database schema v{current} is newer than this code (v{LATEST_SCHEMA_VERSION})"
             )
         if current >= SCHEMA_VERSION:
             return

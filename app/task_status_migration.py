@@ -9,7 +9,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_VERSION = 10
-LATEST_SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
 ACTIVE = 'active'
 DONE = 'done'
 

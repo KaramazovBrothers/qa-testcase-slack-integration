@@ -216,7 +216,7 @@ def handle_event(payload: dict, *, retry_num: str | None = None) -> dict:
             "author_id": event.get("user"),
             "text": event.get("text") or "",
             "received_at": now(),
-        })
+        }, event_id=event_id)
     return {"status": "stored" if created else "ignored", "send_id": row["id"]}
 
 
