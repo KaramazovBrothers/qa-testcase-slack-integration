@@ -185,14 +185,15 @@ class WorkspaceTests(unittest.TestCase):
         deleted=[]
         async def fake_delete(token,channel,ts):
             deleted.append(ts);return {'ok':True}
-        replies=[{'ts':'123.1'}]  # body message; the parent is deleted separately
+        # The parent comes back in the thread too; it must not be counted twice.
+        replies=[{'ts':'123.1','bot_id':'B1'},{'ts':'123.0','bot_id':'B1'}]
         with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
              patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=replies)), \
              patch.object(slack_history,'delete_message',fake_delete):
             response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()['deleted_messages'],2)
-        self.assertEqual(deleted,['123.1','123.1'])
+        self.assertEqual(sorted(deleted),['123.0','123.1'])  # body and parent, each once
         with storage.connection() as db:
             self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
 
@@ -233,7 +234,7 @@ class WorkspaceTests(unittest.TestCase):
              patch.object(slack_history,'delete_message',fake_delete):
             response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(len(deleted),4)  # three replies plus the parent
+        self.assertEqual(len(deleted),3)  # three replies plus the parent, each once
         with storage.connection() as db:
             self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
 
@@ -255,6 +256,43 @@ class WorkspaceTests(unittest.TestCase):
             other=db.execute('SELECT id FROM test_cases WHERE id!=?',(self.case_id,)).fetchone()
         with self.assertRaises(Exception):
             self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{other[0]}/slack-sends/{send_id}')
+
+    def test_delete_send_falls_back_to_body_when_thread_start_is_gone(self):
+        """The recorded thread start may be a foreign message that no longer exists.
+
+        Then the case body is its own root message and must still be deleted;
+        a failed lookup of the thread start must not silently claim "nothing to
+        delete" while the case stays in Slack.
+        """
+        send_id=self._send_once()
+        async def replies(token,channel,ts):
+            if ts=='123.0':
+                raise RuntimeError('Slack replies failed: thread_not_found')
+            return [{'ts':'123.1','bot_id':'B1'}]
+        deleted=[]
+        async def fake_delete(token,channel,ts):
+            deleted.append(ts);return {'ok':True}
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(side_effect=replies)), \
+             patch.object(slack_history,'delete_message',fake_delete):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertIn('123.1',deleted)
+        self.assertNotIn('already_gone',response.json())
+        with storage.connection() as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_own_messages_with_identical_ts_are_kept_in_order(self):
+        """Two posts in the same Slack second must not be merged.
+
+        Merging them used to lose the case body, which then looked like a
+        foreign root message.
+        """
+        send_id=self._send_once()
+        slack_history.append_own_message(send_id,'123.0')
+        with storage.connection() as db:
+            own=json.loads(db.execute('SELECT own_ts FROM slack_sends WHERE id=?',(send_id,)).fetchone()[0])
+        self.assertEqual(own,['123.0','123.1','123.0'])
 
     def test_delete_send_when_thread_already_gone_in_slack(self):
         """A thread deleted by hand must not fail: only the local record goes."""

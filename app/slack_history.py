@@ -49,7 +49,12 @@ def record_send(case_ids, response, user_id=storage.LOCAL_USER_ID, thread_ts=Non
 
 
 def append_own_message(send_id, ts, user_id=storage.LOCAL_USER_ID):
-    """Remember another message the app posted in this thread (instructions)."""
+    """Remember another message the app posted in this thread.
+
+    Order matters: the first entry is the thread start and the last one is the
+    latest post. Two messages posted within the same second can share a Slack
+    timestamp, so they are kept as distinct entries instead of being merged.
+    """
     if not isinstance(ts, str) or not ts:
         return
     with storage.connection() as db:
@@ -57,9 +62,8 @@ def append_own_message(send_id, ts, user_id=storage.LOCAL_USER_ID):
         if row is None:
             return
         own = json.loads(row['own_ts'] or '[]')
-        if ts not in own:
-            own.append(ts)
-            db.execute('UPDATE slack_sends SET own_ts=? WHERE id=?', (json.dumps(own), send_id))
+        own.append(ts)
+        db.execute('UPDATE slack_sends SET own_ts=? WHERE id=?', (json.dumps(own), send_id))
 
 
 def read_send(send_id, user_id=storage.LOCAL_USER_ID):
@@ -98,6 +102,32 @@ class ThreadHasPeopleReplies(HTTPException):
             f'В треде есть ответы людей ({count}). Удаление отменено: '
             'сообщение и тред в Slack остались без изменений.',
         )
+
+
+class ThreadNotOursToDelete(HTTPException):
+    """The recorded thread start never came from the app, so it stays."""
+
+    def __init__(self):
+        super().__init__(
+            409,
+            'Удаление отменено: записанный старт треда не принадлежит приложению. '
+            'В Slack остались сообщения, поэтому запись сохранена: почистите тред вручную.',
+        )
+
+
+def posted_ts(record) -> str | None:
+    """The timestamp of the case body, which is the case's root message.
+
+    `slack_sends.ts` is the *thread start*: the request text when the case was
+    sent on its own, or the case body when it shared a thread. The body is the
+    message that really belongs to this send, so it is the one to fall back on.
+    """
+    stamps = _own_message_ts(record)
+    thread_ts = record['thread_ts'] or record['ts']
+    body = [value for value in stamps if value != thread_ts]
+    if body:
+        return max(body, key=float)
+    return thread_ts if thread_ts in stamps else None
 
 
 def _own_file_ids(record) -> set[str]:
@@ -158,13 +188,20 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
 
     try:
         replies = await list_thread_replies(user_token, channel, thread_ts)
+        gone_in_slack = False
     except (httpx.HTTPError, RuntimeError):
-        # The thread is already gone in Slack (deleted by hand, or pruned).
-        # There is nothing to delete there, so only the local record is removed.
+        # The thread start is gone (deleted by hand, or it was never ours). The
+        # case body may still be there as its own root message, so look it up
+        # before claiming there is nothing to delete.
+        body_ts = posted_ts(record)
         replies = []
         gone_in_slack = True
-    else:
-        gone_in_slack = False
+        if body_ts and body_ts != thread_ts:
+            try:
+                replies = await list_thread_replies(user_token, channel, body_ts)
+                gone_in_slack = False
+            except (httpx.HTTPError, RuntimeError):
+                replies = []
 
     people = [m for m in replies if not _is_ours(record, m, own)]
     if people:
@@ -175,21 +212,31 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
         return {'ok': True, 'deleted_messages': 0, 'send_id': send_id, 'already_gone': True}
 
     # Ours only: the parent plus anything the app posted in the thread
-    # (instructions, APK upload notice). Newest first, parent last.
+    # (instructions, APK upload notice, case picture). Newest first, parent last.
+    # When the thread start is already gone, `replies` is the case body's own
+    # thread, so its first message is that body and gets deleted here.
+    deleted = 0
     for message in sorted(replies, key=lambda m: m.get('ts') or '', reverse=True):
+        if message.get('ts') == record['ts']:
+            # The parent is deleted below, where a foreign parent can be caught.
+            continue
         answer = await delete_message(user_token, channel, message['ts'])
-        if not answer.get('ok'):
-            error = answer.get('error', 'unknown_error')
-            if error == 'message_not_found':
-                # Already deleted by hand; keep going with the rest of the thread.
-                continue
-            raise HTTPException(
-                502,
-                f"Slack не удалил сообщение {message['ts']}: "
-                f"{error}. Тред остался в Slack.",
-            )
+        if answer.get('ok'):
+            deleted += 1
+            continue
+        error = answer.get('error', 'unknown_error')
+        if error == 'message_not_found':
+            # Already deleted by hand; keep going with the rest of the thread.
+            continue
+        raise HTTPException(
+            502,
+            f"Slack не удалил сообщение {message['ts']}: "
+            f"{error}. Тред остался в Slack.",
+        )
     answer = await delete_message(user_token, channel, record['ts'])
-    if not answer.get('ok'):
+    if answer.get('ok'):
+        deleted += 1
+    else:
         error = answer.get('error', 'unknown_error')
         if error != 'message_not_found':
             raise HTTPException(
@@ -197,9 +244,14 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
                 f"Slack не удалил сообщение {record['ts']}: "
                 f"{error}. Тред остался в Slack.",
             )
+        if not _is_ours(record, {'ts': record['ts']}, own):
+            # The thread start was never posted by the app, so this is a foreign
+            # message. Keep the record: the case body we deleted is now gone, so
+            # deleting the row would hide where the case really lived.
+            raise ThreadNotOursToDelete()
 
     forget_send(send_id, user_id)
-    return {'ok': True, 'deleted_messages': len(replies) + 1, 'send_id': send_id}
+    return {'ok': True, 'deleted_messages': deleted, 'send_id': send_id}
 
 
 def forget_send(send_id, user_id=storage.LOCAL_USER_ID):
