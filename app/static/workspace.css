@@ -70,3 +70,7 @@
 .case-image-head{display:flex;flex-direction:column;gap:8px;font-size:13px;color:#4b5f78}
 .case-image-head .muted,.case-image .muted{color:#7a8ba3}
 button.ghost{background:transparent;border:1px solid #c3d1e2;color:#3d3d3d;font-weight:500}
+.case .row{align-items:center}
+.case .row select.status-inline{width:auto;min-width:120px;max-width:160px;font-size:13px;padding:6px 8px}
+.case-foldable[hidden]{display:none}
+.case .slack-history:empty{display:none}

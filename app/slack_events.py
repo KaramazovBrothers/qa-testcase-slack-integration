@@ -19,7 +19,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app import storage
 from app import slack_stream
@@ -27,6 +27,12 @@ from app import slack_stream
 VERSION = "v0"
 MAX_CLOCK_SKEW_SECONDS = 5 * 60
 SUPPORTED_EVENTS = {"message"}
+# Slack retries a delivery only a few times, so an event id never has to be
+# remembered for long. Keeping a week is generous and keeps the table small.
+EVENT_LOG_TTL_SECONDS = 7 * 24 * 3600
+# Slack retries a delivery only a few times, so an event id never has to be
+# remembered for long. Keeping a week is generous and keeps the table small.
+EVENT_LOG_TTL_SECONDS = 7 * 24 * 3600
 
 
 class SignatureError(ValueError):
@@ -90,6 +96,17 @@ def _remember(event_id: str | None, event_type: str, outcome: str) -> None:
             "INSERT OR IGNORE INTO slack_events(event_id,event_type,received_at,outcome) VALUES(?,?,?,?)",
             (event_id, event_type, now(), outcome),
         )
+
+
+def prune_events(ttl_seconds: int = EVENT_LOG_TTL_SECONDS) -> int:
+    """Drop deliveries older than the retry window; returns rows deleted.
+
+    The table exists to de-duplicate Slack retries and to explain why an event
+    was ignored. Once Slack can no longer retry a delivery, the row is noise.
+    """
+    floor = (datetime.now(timezone.utc) - timedelta(seconds=ttl_seconds)).isoformat()
+    with storage.connection() as db:
+        return db.execute("DELETE FROM slack_events WHERE received_at<?", (floor,)).rowcount
 
 
 def _send_for_thread(channel: str, thread_ts: str):

@@ -29,7 +29,7 @@ from app.slack_routes import get_slack_route
 load_dotenv()
 
 from app import slack_events, storage, slack_history, slack_oauth_state_migration, slack_people
-from app import case_images
+from app import case_images, slack_stream
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
@@ -41,6 +41,12 @@ from app.local_access import LocalAccessMiddleware
 @asynccontextmanager
 async def lifespan(app):
     storage.initialize()
+    # Both logs only exist to de-duplicate and to replay recent events; without
+    # this they grow with every message in every subscribed channel, forever.
+    try:
+        slack_stream.prune_all()
+    except Exception:  # a housekeeping failure must never stop the app
+        pass
     yield
 
 

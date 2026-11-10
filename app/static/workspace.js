@@ -132,19 +132,22 @@ const edit=button('Редактировать кейс и текст для Slac
 // Long cases push everything else off the screen; collapse the text, the Slack
 // request and the extra instructions, keeping the controls at hand.
 const key=String(record.id||record.client_key);
-const collapse=button('Свернуть кейс',()=>{const folded=collapse.dataset.folded!=='true';collapse.dataset.folded=String(folded);collapse.textContent=folded?'Развернуть кейс':'Свернуть кейс';long.hidden=folded;if(folded)foldedCases[key]=true;else delete foldedCases[key];});
-const actions=el('div',undefined,'row');actions.append(edit,collapse,button('Удалить кейс',()=>{if(!confirm('Точно удалить кейс? Изменение применится после «Сохранить».'))return;cases=cases.filter(c=>c!==record);renderCases();mark();},'danger'),button('Отправить в Slack',()=>send([record.client_key])));
+const collapse=button('Свернуть кейс',()=>{const folded=collapse.dataset.folded!=='true';collapse.dataset.folded=String(folded);collapse.textContent=folded?'Развернуть кейс':'Свернуть кейс';foldable.hidden=folded;if(folded)foldedCases[key]=true;else delete foldedCases[key];});
+const statusSelect=el('select','','status-inline');statusSelect.setAttribute('aria-label','Статус кейса');statuses.forEach(s=>statusSelect.append(el('option',s)));statusSelect.value=record.status;statusSelect.onchange=()=>{record.status=statusSelect.value;card.dataset.status=record.status;renderCounts();applyFilter();mark();};
+const actions=el('div',undefined,'row');actions.append(statusSelect,edit,collapse,button('Удалить кейс',()=>{if(!confirm('Точно удалить кейс? Изменение применится после «Сохранить».'))return;cases=cases.filter(c=>c!==record);renderCases();mark();},'danger'),button('Отправить в Slack',()=>send([record.client_key])));
 const label=el('label','Тестовый аккаунт'),select=el('select');select.setAttribute('aria-label','Тестовый аккаунт');const none=el('option','Без назначения');none.value='';select.append(none);for(const a of accounts){const o=el('option',`${a.name} · ${a.account_id||a.login||'без ID'}`);o.value=a.id;select.append(o);}select.value=record.test_account_id||'';select.onchange=()=>{const chosen=accounts.find(a=>a.id===select.value)||null;if(select.value&&!chosen){notice('Аккаунт не найден в списке региона. Обновите задачу.',true);return;}record.test_account_id=chosen?chosen.id:null;if(chosen)applyAccount(record,chosen);body.textContent=record.text;mark();};label.append(select);
-const statusLabel=el('label','Статус'),status=el('select');statuses.forEach(s=>status.append(el('option',s)));status.value=record.status;status.onchange=()=>{record.status=status.value;card.dataset.status=record.status;renderCounts();applyFilter();mark();};statusLabel.append(status);
+const statusLabel=el('label','Статус');statusLabel.hidden=true;
 const [ql,qa]=field('Личный комментарий',record.qa_comment,'textarea');qa.maxLength=20000;
 heading.oninput=()=>{record.title=heading.innerText;mark();};body.oninput=()=>{record.text=body.innerText;mark();};request.oninput=()=>{record.request_text=request.value;mark();};comment.oninput=()=>{record.comment=comment.value;mark();};qa.oninput=()=>{record.qa_comment=qa.value;mark();};
 const picture=el('div',undefined,'case-image');renderCaseImage(picture,record);
 const apk=el('div',undefined,'apk-note');renderApkNote(apk,record);const history=el('div',undefined,'slack-history');renderHistory(record,history);
-const long=el('div',undefined,'case-long');long.append(body,rl,cl);
+const foldable=el('div',undefined,'case-foldable');const long=el('div',undefined,'case-long');long.append(body,rl,cl);foldable.append(long,label,ql,picture,apk);
 // A card rebuilt by renderCases() must stay folded if the operator folded it.
-if(foldedCases[key]){collapse.dataset.folded='true';collapse.textContent='Развернуть кейс';long.hidden=true;}
+// A card rebuilt by renderCases() must stay folded if the operator folded it;
+// folding keeps the title, the new-reply chip and the toolbar visible.
+if(foldedCases[key]){collapse.dataset.folded='true';collapse.textContent='Развернуть кейс';foldable.hidden=true;}
 else collapse.dataset.folded='false';
-card.append(actions,label,heading,long,statusLabel,ql,picture,apk,history);$('cases').append(card);}applyFilter();restoreCaseReplies();}
+card.append(actions,heading,history,foldable);$('cases').append(card);}applyFilter();restoreCaseReplies();}
 function applyFilter(){for(const card of $('cases').children)card.hidden=!!$('statusFilter').value&&card.dataset.status!==$('statusFilter').value;}
 // A WebView case carries the build of its licence; say which one, and when
 // it was uploaded, before the tester sends anything.

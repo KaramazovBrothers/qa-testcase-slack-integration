@@ -61,6 +61,16 @@ def replay(since_iso: str | None) -> list[dict]:
     return events
 
 
+def prune_all() -> dict:
+    """Trim both replay/log tables; called at start-up so they cannot grow forever."""
+    from app import slack_events
+
+    return {
+        "stream_events": prune(),
+        "slack_events": slack_events.prune_events(),
+    }
+
+
 def prune(before_iso: str | None = None) -> int:
     """Drop events older than the replay window; returns the number deleted."""
     floor = before_iso or (datetime.now(timezone.utc) - timedelta(seconds=REPLAY_WINDOW_SECONDS)).isoformat()
