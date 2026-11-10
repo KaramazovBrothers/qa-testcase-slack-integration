@@ -157,9 +157,14 @@ def for_slack(image: dict) -> dict:
 
         with Image.open(io.BytesIO(content)) as source:
             picture = source.convert("RGBA")
+            # Slack always shows an image at its natural size, so the small copy
+            # is the real size; without this it would be upscaled to the frame.
             picture.thumbnail(SLACK_THUMB_SIZE, Image.LANCZOS)
+            canvas = Image.new("RGBA", SLACK_THUMB_SIZE, (0, 0, 0, 0))
+            canvas.paste(picture, ((SLACK_THUMB_SIZE[0] - picture.width) // 2,
+                                   (SLACK_THUMB_SIZE[1] - picture.height) // 2))
             buffer = io.BytesIO()
-            picture.save(buffer, format="PNG", optimize=True)
+            canvas.save(buffer, format="PNG", optimize=True)
         return {"filename": f"method-{image['id']}.png", "content": buffer.getvalue()}
     except Exception:
         # No Pillow (or an image it cannot decode): send the original untouched.

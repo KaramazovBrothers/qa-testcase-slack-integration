@@ -211,6 +211,44 @@ class WorkspaceTests(unittest.TestCase):
         with storage.connection() as db:
             self.assertIsNotNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
 
+    def test_delete_send_ignores_our_own_bot_messages(self):
+        """The app posts with the user's token, so its own messages carry bot_id.
+
+        They must not count as "answers from people", otherwise deleting a
+        thread with only our messages is refused forever.
+        """
+        send_id=self._send_once()
+        replies=[{'ts':'123.1','user':'U_SELF','bot_id':'B1','text':'case body'},
+                 {'ts':'123.2','user':'U_SELF','bot_id':'B1','text':'instructions'},
+                 {'ts':'123.3','user':'U_SELF','text':'','files':[{'id':'F1'}]}]
+        with storage.connection() as db:
+            # The uploaded file id is remembered as ours, so the attachment
+            # message is recognised even though it carries no bot flag.
+            db.execute("UPDATE slack_sends SET own_ts='[\"123.0\",\"F1\"]' WHERE id=?",(send_id,))
+        deleted=[]
+        async def fake_delete(token,channel,ts):
+            deleted.append(ts);return {'ok':True}
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=replies)), \
+             patch.object(slack_history,'delete_message',fake_delete):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(len(deleted),4)  # three replies plus the parent
+        with storage.connection() as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
+
+    def test_delete_send_still_refuses_a_real_person_among_ours(self):
+        send_id=self._send_once()
+        replies=[{'ts':'123.1','user':'U_SELF','bot_id':'B1','text':'case body'},
+                 {'ts':'123.2','user':'U_HUMAN','text':'готово'}]
+        deleter=AsyncMock(return_value={'ok':True})
+        with patch.object(storage,'get_slack_token',return_value='fake-user-token'), \
+             patch.object(slack_history,'list_thread_replies',AsyncMock(return_value=replies)), \
+             patch.object(slack_history,'delete_message',deleter):
+            response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
+        self.assertEqual(response.status_code,409,response.text)
+        self.assertEqual(deleter.await_count,0)
+
     def test_delete_send_rejects_foreign_case(self):
         send_id=self._send_once()
         with storage.connection() as db:

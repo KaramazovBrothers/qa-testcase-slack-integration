@@ -100,9 +100,25 @@ def _send_for_thread(channel: str, thread_ts: str):
         ).fetchone()
 
 
+def _is_timestamp(value) -> bool:
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def is_own_message(row, ts: str) -> bool:
     """True when the message was posted by the app itself."""
-    own = json.loads(row["own_ts"] or "[]")
+    # The same list also holds uploaded file ids (`F0CGLLK5517`); they are not
+    # timestamps, so a numeric comparison would be meaningless.
+    own = []
+    for value in json.loads(row["own_ts"] or "[]"):
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            continue
+        own.append(value)
     return ts in own or ts == row["ts"]
 
 
@@ -114,7 +130,7 @@ def _is_after_last_send(row, ts: str) -> bool:
     a new answer from a person: it is either our own echo or history.
     """
     own = [value for value in [*json.loads(row["own_ts"] or "[]"), row["ts"]]
-           if isinstance(value, str) and value]
+           if isinstance(value, str) and value and _is_timestamp(value)]
     try:
         candidate = float(ts)
     except (TypeError, ValueError):

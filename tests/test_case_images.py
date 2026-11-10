@@ -195,7 +195,8 @@ class SendOrderTests(unittest.TestCase):
         self.assertEqual(calls[2][1], f"method-{image['id']}.png")
         from PIL import Image
         with Image.open(io.BytesIO(uploaded_bytes["content"])) as sent:
-            self.assertLessEqual(max(sent.size), 50)
+            # Exactly the target box: Slack shows the picture at its own size.
+            self.assertEqual(sent.size, (50, 50))
 
     def test_unknown_image_is_rejected_before_sending(self):
         with patch.object(main, "post_message") as send:

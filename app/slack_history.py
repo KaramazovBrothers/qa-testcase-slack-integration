@@ -100,6 +100,49 @@ class ThreadHasPeopleReplies(HTTPException):
         )
 
 
+def _own_file_ids(record) -> set[str]:
+    """File ids the app uploaded into this thread (APK, case screenshots)."""
+    return {value for value in json.loads(record['own_ts'] or '[]')
+            if isinstance(value, str) and value and not _looks_like_ts(value)}
+
+
+def _looks_like_ts(value: str) -> bool:
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _own_message_ts(record) -> set[str]:
+    """Everything in `own_ts` that is a message timestamp, not a file id.
+
+    The same list also stores uploaded file ids (`F0CGLLK5517`), which are not
+    timestamps and must never be compared with a message.
+    """
+    return {value for value in json.loads(record['own_ts'] or '[]')
+            if isinstance(value, str) and value and _looks_like_ts(value)}
+
+
+def _is_ours(record, message: dict, own: set[str]) -> bool:
+    """Did this app post the message (rather than a person answering in the thread)?
+
+    The app posts with the user's OAuth token, so the author id matches a human
+    and cannot be used. Slack marks app-authored messages with `bot_id`, which
+    covers the case body, the extra instructions and the attached APK. Known
+    timestamps from `own_ts` cover older messages where that flag is missing.
+    """
+    if message.get('bot_id'):
+        return True
+    ts = message.get('ts')
+    if ts in own or ts == record['ts']:
+        return True
+    # A message that carries one of our uploads is ours as well: Slack attaches
+    # the file to a message posted with the user's own token.
+    files = {f.get('id') for f in (message.get('files') or []) if f.get('id')}
+    return bool(files & _own_file_ids(record))
+
+
 async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
     """Delete a send's thread from Slack, then forget it locally.
 
@@ -110,7 +153,7 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
     record = read_send(send_id, user_id)
     channel = record['channel']
     thread_ts = record['thread_ts'] or record['ts']
-    own = set(json.loads(record['own_ts'] or '[]'))
+    own = _own_message_ts(record)
     own.add(record['ts'])
 
     try:
@@ -123,7 +166,7 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
     else:
         gone_in_slack = False
 
-    people = [m for m in replies if m.get('ts') not in own]
+    people = [m for m in replies if not _is_ours(record, m, own)]
     if people:
         raise ThreadHasPeopleReplies(len(people))
 
