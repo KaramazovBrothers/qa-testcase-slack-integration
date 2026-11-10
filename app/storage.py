@@ -128,6 +128,8 @@ def initialize():
     migrate_webview_apk(DB_PATH, backup_existing)
     from app.slack_stream_migration import migrate as migrate_slack_stream
     migrate_slack_stream(DB_PATH, backup_existing)
+    from app.case_images_migration import migrate as migrate_case_images
+    migrate_case_images(DB_PATH, backup_existing)
     DB_PATH.chmod(0o600)
 
 

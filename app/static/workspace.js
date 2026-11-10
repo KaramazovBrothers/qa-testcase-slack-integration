@@ -32,7 +32,7 @@ async function listTasks(){const revision=++searchRevision,items=await api('/api
 // Drawn from state, not patched afterwards: the list is rebuilt after every save.
 // The sidebar mirrors the open set, so the dot only belongs to that task.
 const count=String(item.id)===currentTaskId()?unreadCount():0;if(count){b.dataset.replies='new';b.append(el('span',count>1?`+${count}`:'новый ответ','replies-dot'));}
-$('tasks').append(b);}}function adoptSet(value){currentSet=value;generationKey=value?.generation_key||null;removedSends={};replyBaseline={};caseReplies={};cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;for(const c of cases||[])if(c.id)setReplyBaseline(c);linkAccounts();renderMentions();renderCases();restoreTaskReplies();if(value&&value.id){startReplyStream();}else{stopReplyStream();}}
+$('tasks').append(b);}}function adoptSet(value){currentSet=value;setImage=value?.default_image||null;generationKey=value?.generation_key||null;removedSends={};replyBaseline={};caseReplies={};cases=value?value.cases.map(c=>({...c,client_key:c.client_key||uuid()})):null;for(const c of cases||[])if(c.id)setReplyBaseline(c);linkAccounts();renderMentions();renderCaseShots();renderCases();restoreTaskReplies();if(value&&value.id){startReplyStream();}else{stopReplyStream();}}
 async function listSets(){return task?await api(`/api/tasks/${task.id}/sets`):[];}
 function showTask(){ $('jiraId').value=task?.jira_id||'';$('taskTitle').value=task?.title||'';$('deleteTask').hidden=!task;const toggle=$('toggleStatus');toggle.hidden=!task;const done=task?.status==='done';toggle.textContent='Статус: '+(task?.status||'active');toggle.classList.toggle('done',!!done);toggle.setAttribute('aria-pressed',String(!!done));toggle.title=done?'Вернуть в активные':'Пометить как done';$('dates').textContent=task?`Изменена ${date(task.updated_at)}`:'Черновик · ещё не сохранён';gen.lockRegion(!!task?.region);}
 async function selectTask(id){stash();const key='task:'+id;const saved=unstash(key);
@@ -46,6 +46,11 @@ function currentLicence(){const licence=gen&&gen.snapshot?gen.snapshot().fields.
 // alone would attach a build to native and HPP cases too.
 function isWebviewCase(record){return /^Platform:\s*WebView\s*$/im.test(String(record&&record.text||''));}
 function caseLicence(record){const licence=isWebviewCase(record)?currentLicence():'';return licence||null;}
+let setImage=null,applyImageToAll=true;
+// The picture a case will attach: its own override, else the set picture.
+function imageFor(record){return record?.image?.id?record.image:(record?.image_id?record.image:null)||setImage;}
+function imageUrl(image){return image&&image.id?'/api/case-images/'+image.id+'?v='+encodeURIComponent(image.updated_at||''):'';}
+function renderSetImage(){const info=$('setImageInfo');if(!info)return;info.textContent=setImage?`${setImage.filename} · ${date(setImage.updated_at)} · применяется ко всем кейсам без своей картинки.`: 'Не выбрана. Загрузите один раз — она добавится в Slack ко всем кейсам.';$('applyImageToAll').checked=applyImageToAll;}
 function name(){return task?.jira_id||task?.title||'Без названия';}
 function restoreDraft(draft){task=draft.task||task;draftKey=draft.task?.client_key||draftKey;accounts=draft.accounts;deletedAccountIds=draft.deletedAccountIds;removedSends=draft.removedSends;currentSet=draft.currentSet;generationKey=draft.generationKey;mentionEdits=draft.mentionEdits;gen.restore(draft.settings);restoreMentions(draft.settings);gen.setAccountOptions(accounts);showTask();cases=draft.cases;linkAccounts();renderMentions();renderCases();renderAccounts();listSets();baseline=draft.baseline;markedSignature='';
 // A restored draft keeps the same set, so replies must keep arriving too.
@@ -115,6 +120,7 @@ catch(e){$('mentionStatus').textContent='Не удалось загрузить 
 renderMentions();}
 /** Apply the per-region mentions stored with a task's settings. */
 function restoreMentions(settings){mentionEdits=JSON.parse(JSON.stringify((settings&&settings.mention_edits)||{}));renderMentions();}
+function renderCaseShots(){renderSetImage();const pick=$('setImageFile');if(pick&&!pick.dataset.bound){pick.dataset.bound='1';pick.onchange=()=>{const file=pick.files&&pick.files[0];pick.value='';if(!file)return;action(()=>uploadSetImage(file));};$('pickSetImage').onclick=()=>pick.click();$('applyImageToAll').onchange=e=>{applyImageToAll=e.target.checked;mark();};}}
 function renderCounts(){$('counts').replaceChildren(...statuses.map(s=>el('span',`${s}: ${(cases||[]).filter(c=>c.status===s).length}`)));}
 function renderCases(){ $('cases').replaceChildren();renderCounts();$('sendSet').disabled=!cases?.length;$('setInfo').textContent=currentSet?`Сохранённый набор · ${date(currentSet.created_at)}. Изменения применяются кнопкой «Сохранить».`:'Изменения кейсов сохраняются кнопкой «Сохранить».';for(const record of cases||[]){const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id||record.client_key;const heading=el('h3',record.title),body=el('pre',record.text);heading.setAttribute('aria-label','Название кейса');body.setAttribute('aria-label','Текст кейса');const [rl,request]=field('Обращение в Slack',record.request_text,'textarea'),[cl,comment]=field('Дополнительные инструкции для Slack',record.comment,'textarea');request.readOnly=comment.readOnly=true;request.maxLength=2000;comment.maxLength=20000;
 const edit=button('Редактировать кейс и текст для Slack',()=>{const editing=edit.getAttribute('aria-pressed')!=='true';edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать кейс и текст для Slack';heading.contentEditable=body.contentEditable=editing?'plaintext-only':'false';request.readOnly=comment.readOnly=!editing;if(editing)body.focus();});edit.setAttribute('aria-pressed','false');
@@ -127,16 +133,34 @@ const label=el('label','Тестовый аккаунт'),select=el('select');se
 const statusLabel=el('label','Статус'),status=el('select');statuses.forEach(s=>status.append(el('option',s)));status.value=record.status;status.onchange=()=>{record.status=status.value;card.dataset.status=record.status;renderCounts();applyFilter();mark();};statusLabel.append(status);
 const [ql,qa]=field('Личный комментарий',record.qa_comment,'textarea');qa.maxLength=20000;
 heading.oninput=()=>{record.title=heading.innerText;mark();};body.oninput=()=>{record.text=body.innerText;mark();};request.oninput=()=>{record.request_text=request.value;mark();};comment.oninput=()=>{record.comment=comment.value;mark();};qa.oninput=()=>{record.qa_comment=qa.value;mark();};
+const picture=el('div',undefined,'case-image');renderCaseImage(picture,record);
 const apk=el('div',undefined,'apk-note');renderApkNote(apk,record);const history=el('div',undefined,'slack-history');renderHistory(record,history);
 const long=el('div',undefined,'case-long');long.append(body,rl,cl);
 // A card rebuilt by renderCases() must stay folded if the operator folded it.
 if(foldedCases[key]){collapse.dataset.folded='true';collapse.textContent='Развернуть кейс';long.hidden=true;}
 else collapse.dataset.folded='false';
-card.append(actions,label,heading,long,statusLabel,ql,apk,history);$('cases').append(card);}applyFilter();restoreCaseReplies();}
+card.append(actions,label,heading,long,statusLabel,ql,picture,apk,history);$('cases').append(card);}applyFilter();restoreCaseReplies();}
 function applyFilter(){for(const card of $('cases').children)card.hidden=!!$('statusFilter').value&&card.dataset.status!==$('statusFilter').value;}
 // A WebView case carries the build of its licence; say which one, and when
 // it was uploaded, before the tester sends anything.
 async function renderApkNote(host,record){host.replaceChildren();const licence=caseLicence(record);if(!licence){host.hidden=true;return;}host.hidden=false;try{const info=await api('/api/webview/apk-for/'+licence);if(!info.available){host.append(el('span',`WebView APK (${licence}): сборка не загружена — файл не прикрепится.`));host.classList.add('warn');return;}host.classList.remove('warn');host.append(el('span',`К сообщению будет прикреплён файл: ${info.filename} · сборка от ${date(info.uploaded_at)}`));}catch(e){host.textContent='Не удалось узнать сборку APK: '+e.message;}}
+// A screenshot of the method as the tester sees it. The set picture is the
+// default for every case; a case can upload its own and go back to the default.
+function imageLabel(record){const image=imageFor(record);if(!image)return 'Картика метода не выбрана — в Slack она не прикрепится.';const source=record.image_source==='case'||(record.image&&record.image.id&&record.image_source!=='set')?'своя картинка кейса':'картинка набора';return `${image.filename} · ${source} · ${date(image.updated_at)}`;}
+function renderCaseImage(host,record){host.replaceChildren();const image=imageFor(record);
+const head=el('div',undefined,'case-image-head');
+if(image){const img=el('img');img.src=imageUrl(image);img.alt='Как метод выглядит на фронте';img.loading='lazy';host.append(img);head.append(el('span',imageLabel(record)));}
+else head.append(el('span',imageLabel(record),'muted'));
+const buttons=el('div',undefined,'row');
+const picker=el('input');picker.type='file';picker.accept='image/png,image/jpeg,image/gif,image/webp';
+const choose=button(record.image_source==='case'?'Заменить картинку кейса':'Своя картинка для кейса',()=>picker.click());
+picker.onchange=()=>{const file=picker.files&&picker.files[0];picker.value='';if(!file)return;
+action(async()=>{if(!record.id){await saveWork();const fresh=(cases||[]).find(c=>c.client_key===record.client_key);if(!fresh||!fresh.id)throw Error('Сначала сохраните кейс');await uploadCaseImage(fresh,file);renderCases();mark();notice('Картинка кейса сохранена.');}});}
+buttons.append(choose);
+if(record.image_source==='case'&&record.image_id){buttons.append(button('Вернуть картинку набора',()=>action(async()=>{if(!record.id)return;await api('/api/case-images/cases/'+record.id,'DELETE');record.image_id=null;record.image=setImage?{...setImage}:null;record.image_source=setImage?'set':null;renderCases();mark();notice('Кейс снова использует картинку набора.');}),'ghost'));}
+head.append(buttons);host.append(head);}
+async function uploadCaseImage(record,file){const body=new FormData();body.append('file',file,file.name);const r=await fetch('/api/case-images/cases/'+record.id,{method:'POST',body});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data&&typeof data.detail==='string'?data.detail:'Не удалось загрузить картинку');record.image_id=data.id;record.image={id:data.id,filename:data.filename,media_type:data.media_type,size_bytes:data.size_bytes,updated_at:data.updated_at,is_default:false};record.image_source='case';}
+async function uploadSetImage(file){if(!currentSet?.id){notice('Сначала сохраните набор: картинка привязывается к сохранённому набору.',true);return;}const body=new FormData();body.append('file',file,file.name);const r=await fetch('/api/case-images/sets/'+currentSet.id+'/default',{method:'POST',body});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data&&typeof data.detail==='string'?data.detail:'Не удалось загрузить картинку');setImage=data;if(applyImageToAll)for(const c of cases||[])if(c.image_source!=='case'){c.image={...data};c.image_source='set';}renderCases();mark();notice(`Картинка набора сохранена${applyImageToAll?': применена ко всем кейсам без своей картинки':''}.`);}
 function renderHistory(record,host){
   host.replaceChildren();
   const gone=removedSends[record.client_key]||[];
@@ -296,7 +320,7 @@ cases=[...(cases||[]),record];
 renderCases();mark();
 const cards=$('cases').children;const node=cards[cards.length-1];if(node){node.scrollIntoView({block:'center'});const heading=node.querySelector('h3');if(heading)heading.focus();}
 notice('Кейс добавлен. Текст взят из генератора; шаги и остальное заполните вручную.');}
-function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:mentionValues(),cases:selected.map(c=>({case_ids:[c.id],title:c.title,text:c.text,comment:c.comment,request_text:c.request_text,licence:caseLicence(c)}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
+function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:mentionValues(),cases:selected.map(c=>({case_ids:[c.id],title:c.title,text:c.text,comment:c.comment,request_text:c.request_text,licence:caseLicence(c),image_id:imageFor(c)?.id||null}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
 $('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('addCase').onclick=()=>addCase();$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));$('onlyActive').onchange=()=>listTasks().catch(e=>notice(e.message,true));$('toggleStatus').onclick=()=>action(async()=>{if(!task)return;const result=await api(`/api/tasks/${task.id}/status`,'POST',{});task.status=result.status;showTask();await listTasks();notice(result.status==='done'?'Задача помечена как done.':'Задача снова активна.');});for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
 $('addMention').onclick=()=>{const region=mentionRegion();if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[];mentionEdits[region].push('');renderMentions();mark();};
 $('resetMentions').onclick=()=>{const region=mentionRegion();mentionEdits[region]=[...(directory[region]||[])];renderMentions();mark();};

@@ -10,7 +10,7 @@ from pathlib import Path
 
 SCHEMA_VERSION = 6
 # Any later migration means a database that already has this column.
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 13
 
 
 def migrate(path: Path, backup_existing) -> None:

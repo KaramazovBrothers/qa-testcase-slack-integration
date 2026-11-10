@@ -29,10 +29,12 @@ from app.slack_routes import get_slack_route
 load_dotenv()
 
 from app import slack_events, storage, slack_history, slack_oauth_state_migration, slack_people
+from app import case_images
 from app.current_user import CurrentUserId
 from app.local_api import router as local_router
 from app.workspace_api import router as workspace_router
 from app.webview_api import router as webview_router
+from app.case_images_api import router as images_router
 from app.local_access import LocalAccessMiddleware
 
 
@@ -53,6 +55,7 @@ app.add_middleware(LocalAccessMiddleware)
 app.include_router(workspace_router)
 app.include_router(local_router)
 app.include_router(webview_router)
+app.include_router(images_router)
 
 
 @app.get("/app", include_in_schema=False)
@@ -119,6 +122,9 @@ class GeneratedCase(BaseModel):
     request_text: Optional[str] = Field(default=None, max_length=2000)
     # Set for WebView cases: the build of this licence rides along in the thread.
     licence: Optional[Literal["com", "pinco", "zazino"]] = None
+    # Screenshot of the method as the tester sees it; sent right after the case
+    # body so it reads as "this is what the case looks like".
+    image_id: Optional[int] = Field(default=None, gt=0)
 
     @field_validator("licence", mode="before")
     @classmethod
@@ -378,6 +384,15 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
     request_text = payload.request_text.strip() if payload.request_text is not None else f"Просьба провести тест {operation}."
 
     slack_history.validate_case_ids((case_id for case in payload.cases for case_id in case.case_ids), user_id)
+    # Resolve every picture before posting anything: a missing image must stop
+    # the send instead of leaving a half-delivered case in the thread.
+    pictures = {}
+    for case in payload.cases:
+        if case.image_id:
+            picture = case_images.read_image(case.image_id, user_id)
+            if picture is None:
+                raise HTTPException(status_code=404, detail="Case image not found")
+            pictures[case.image_id] = picture
     deliveries = []
     sent = 0
     thread_ts_values: list[str] = []
@@ -400,6 +415,19 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
             )
             delivery = await slack_history.resolve_permalink(user_token, send_id, user_id)
             deliveries.append({**delivery, "case_ids": list(dict.fromkeys(case.case_ids))})
+
+        # The picture comes immediately after the case body: the reader sees the
+        # case, then what the method looks like, before any extra instructions.
+        if case.image_id:
+            picture = pictures[case.image_id]
+            uploaded_image = await slack_call(upload_file(
+                user_token, channel_id, picture["filename"], picture["content"],
+                thread_ts=thread_ts,
+            ), user_id)
+            if case.case_ids:
+                # Our own attachment must not be stored as a tester's reply.
+                for file in uploaded_image.get("files") or []:
+                    slack_history.append_own_message(send_id, file.get("id"), user_id)
 
         if case.comment.strip():
             posted_note = await slack_call(post_message(

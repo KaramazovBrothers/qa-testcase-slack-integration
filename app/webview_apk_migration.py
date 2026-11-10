@@ -18,7 +18,7 @@ from pathlib import Path
 from app.webview_apk import CHANNEL
 
 SCHEMA_VERSION = 11
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 13
 
 DEFAULT_MEMBER = ("U03V08KDU31", "Denys Denysenko")
 

@@ -197,6 +197,9 @@ def get_set(db, task_id, set_id, user_id=storage.LOCAL_USER_ID):
         'SELECT * FROM test_cases WHERE set_id=? ORDER BY position', (set_id,))]
     slack_history.attach_history(db, result['cases'])
     attach_replies(db, result['cases'])
+    from app import case_images
+    case_images.attach_images(db, result['cases'])
+    result['default_image'] = case_images.meta_for(db, case_images.default_image_id(db, set_id))
     result['counts'] = {s: sum(c['status'] == s for c in result['cases']) for s in ('Not tested','Passed','Failed','Blocked','Skipped')}
     return result
 
