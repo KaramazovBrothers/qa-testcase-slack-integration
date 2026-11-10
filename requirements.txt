@@ -6,3 +6,6 @@ uvicorn[standard]==0.34.0
 httpx==0.28.1
 python-dotenv==1.0.1
 python-multipart==0.0.20
+# Case screenshots are scaled down for Slack (app/case_images.for_slack); without
+# Pillow the original picture is sent unchanged.
+pillow==11.1.0

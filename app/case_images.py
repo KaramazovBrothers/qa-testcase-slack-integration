@@ -5,6 +5,7 @@ looks on the frontend"); any case can point at its own picture instead. Both
 kinds live in `case_images`; the default row is the one with `is_default=1`.
 """
 
+import io
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,10 @@ ALLOWED_TYPES = {
     "image/webp": ".webp",
 }
 MAX_BYTES = 10 * 1024 * 1024
+# Slack shows an attachment at its natural size, so a full-page screenshot would
+# fill the thread. The picture is only a hint, and 50 px is enough to recognize
+# the method; the original stays available in the workspace.
+SLACK_THUMB_SIZE = (50, 50)
 _SIGNATURES = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -136,6 +141,29 @@ def attach_images(db, cases: list[dict]) -> None:
             None if not image_id else
             "case" if case.get("image_id") else "set"
         )
+
+
+def for_slack(image: dict) -> dict:
+    """The attachment that goes to Slack: the same picture, scaled down.
+
+    Slack renders an image at its natural size, so a page screenshot would push
+    the whole case out of view. A small copy is enough to recognize the method;
+    the result is handed back as a PNG (or the original when it cannot be
+    re-encoded, so a send never fails just because of the thumbnail).
+    """
+    content = image.get("content") or b""
+    try:
+        from PIL import Image  # Pillow is optional: see the fallback below
+
+        with Image.open(io.BytesIO(content)) as source:
+            picture = source.convert("RGBA")
+            picture.thumbnail(SLACK_THUMB_SIZE, Image.LANCZOS)
+            buffer = io.BytesIO()
+            picture.save(buffer, format="PNG", optimize=True)
+        return {"filename": f"method-{image['id']}.png", "content": buffer.getvalue()}
+    except Exception:
+        # No Pillow (or an image it cannot decode): send the original untouched.
+        return {"filename": image["filename"], "content": content}
 
 
 def delete_orphan_override(db, case_id: int) -> None:

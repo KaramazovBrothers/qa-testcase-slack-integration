@@ -420,8 +420,11 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
         # case, then what the method looks like, before any extra instructions.
         if case.image_id:
             picture = pictures[case.image_id]
+            # A full-page screenshot would take over the thread; the picture is
+            # only a hint of what the method looks like, so it goes out small.
+            thumb = case_images.for_slack(picture)
             uploaded_image = await slack_call(upload_file(
-                user_token, channel_id, picture["filename"], picture["content"],
+                user_token, channel_id, thumb["filename"], thumb["content"],
                 thread_ts=thread_ts,
             ), user_id)
             if case.case_ids:

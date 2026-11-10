@@ -120,7 +120,12 @@ catch(e){$('mentionStatus').textContent='Не удалось загрузить 
 renderMentions();}
 /** Apply the per-region mentions stored with a task's settings. */
 function restoreMentions(settings){mentionEdits=JSON.parse(JSON.stringify((settings&&settings.mention_edits)||{}));renderMentions();}
-function renderCaseShots(){renderSetImage();const pick=$('setImageFile');if(pick&&!pick.dataset.bound){pick.dataset.bound='1';pick.onchange=()=>{const file=pick.files&&pick.files[0];pick.value='';if(!file)return;action(()=>uploadSetImage(file));};$('pickSetImage').onclick=()=>pick.click();$('applyImageToAll').onchange=e=>{applyImageToAll=e.target.checked;mark();};}}
+function renderCaseShots(){renderSetImage();const pick=$('setImageFile');
+if(pick&&!pick.dataset.bound){pick.dataset.bound='1';
+pick.onchange=()=>{const file=pick.files&&pick.files[0];pick.value='';if(!file)return;action(()=>uploadSetImage(file));};
+$('pickSetImage').onclick=()=>pick.click();
+$('pasteSetImage').onclick=()=>pasteImage($('setImageInfo'),file=>action(()=>uploadSetImage(file)));
+$('applyImageToAll').onchange=e=>{applyImageToAll=e.target.checked;mark();};}}
 function renderCounts(){$('counts').replaceChildren(...statuses.map(s=>el('span',`${s}: ${(cases||[]).filter(c=>c.status===s).length}`)));}
 function renderCases(){ $('cases').replaceChildren();renderCounts();$('sendSet').disabled=!cases?.length;$('setInfo').textContent=currentSet?`Сохранённый набор · ${date(currentSet.created_at)}. Изменения применяются кнопкой «Сохранить».`:'Изменения кейсов сохраняются кнопкой «Сохранить».';for(const record of cases||[]){const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id||record.client_key;const heading=el('h3',record.title),body=el('pre',record.text);heading.setAttribute('aria-label','Название кейса');body.setAttribute('aria-label','Текст кейса');const [rl,request]=field('Обращение в Slack',record.request_text,'textarea'),[cl,comment]=field('Дополнительные инструкции для Slack',record.comment,'textarea');request.readOnly=comment.readOnly=true;request.maxLength=2000;comment.maxLength=20000;
 const edit=button('Редактировать кейс и текст для Slack',()=>{const editing=edit.getAttribute('aria-pressed')!=='true';edit.setAttribute('aria-pressed',String(editing));edit.textContent=editing?'Готово':'Редактировать кейс и текст для Slack';heading.contentEditable=body.contentEditable=editing?'plaintext-only':'false';request.readOnly=comment.readOnly=!editing;if(editing)body.focus();});edit.setAttribute('aria-pressed','false');
@@ -153,12 +158,33 @@ if(image){const img=el('img');img.src=imageUrl(image);img.alt='Как метод
 else head.append(el('span',imageLabel(record),'muted'));
 const buttons=el('div',undefined,'row');
 const picker=el('input');picker.type='file';picker.accept='image/png,image/jpeg,image/gif,image/webp';
+picker.hidden=true;picker.setAttribute('aria-label','Картинка кейса');
 const choose=button(record.image_source==='case'?'Заменить картинку кейса':'Своя картинка для кейса',()=>picker.click());
+// The same input serves both paths: a file dialog, or an image pasted from
+// the clipboard (Ctrl+V / ⌘V) — the usual way a screenshot is taken.
 picker.onchange=()=>{const file=picker.files&&picker.files[0];picker.value='';if(!file)return;
-action(async()=>{if(!record.id){await saveWork();const fresh=(cases||[]).find(c=>c.client_key===record.client_key);if(!fresh||!fresh.id)throw Error('Сначала сохраните кейс');await uploadCaseImage(fresh,file);renderCases();mark();notice('Картинка кейса сохранена.');}});}
-buttons.append(choose);
+action(async()=>{if(!record.id){await saveWork();const fresh=(cases||[]).find(c=>c.client_key===record.client_key);
+if(!fresh||!fresh.id)throw Error('Сначала сохраните кейс');await uploadCaseImage(fresh,file);renderCases();mark();
+notice('Картинка кейса сохранена.');}});};
+buttons.append(choose,pasteButton(picker,'Вставить картинку кейса из буфера'));
 if(record.image_source==='case'&&record.image_id){buttons.append(button('Вернуть картинку набора',()=>action(async()=>{if(!record.id)return;await api('/api/case-images/cases/'+record.id,'DELETE');record.image_id=null;record.image=setImage?{...setImage}:null;record.image_source=setImage?'set':null;renderCases();mark();notice('Кейс снова использует картинку набора.');}),'ghost'));}
 head.append(buttons);host.append(head);}
+/** Put an image from the clipboard into a file input's change handler. */
+function pasteButton(picker,label){return button(label,()=>pasteImage(picker,file=>{const transfer=new DataTransfer();transfer.items.add(file);
+picker.files=transfer.files;picker.dispatchEvent(new Event('change'));}),'ghost');}
+async function pasteImage(host,onFile){host&&host.classList&&host.classList.add('pasting');
+try{const file=await imageFromClipboard();if(file)onFile(file);else notice('В буфере нет картинки: скопируйте скриншот или файл изображения.',true);}
+catch(e){notice(clipboardError(e),true);}finally{host&&host.classList&&host.classList.remove('pasting');}}
+/** First image in the clipboard, as a File the uploader already understands. */
+async function imageFromClipboard(){if(!navigator.clipboard||!navigator.clipboard.read)throw Error('unsupported');
+const items=await navigator.clipboard.read();for(const item of items){for(const type of item.types){
+if(!type.startsWith('image/'))continue;const blob=await item.getType(type);
+const ext=(type.split('/')[1]||'png').replace('jpeg','jpg').replace('svg+xml','svg');
+return new File([blob],'clipboard-'+Date.now()+'.'+ext,{type});}}return null;}
+function clipboardError(e){const name=e&&e.name||'';if(name==='NotAllowedError'||/permission|denied/i.test(String(e&&e.message)))
+return 'Браузер не разрешил чтение буфера: разрешите доступ к буферу обмена для этой страницы или нажмите Ctrl+V (⌘V) в окне выбора файла.';
+if(e&&e.message==='unsupported')return 'Браузер не умеет читать буфер обмена в один клик: нажмите в поле выбора файла и вставьте картинку через Ctrl+V (⌘V).';
+return 'Не удалось прочитать буфер обмена: '+(e&&e.message||e);}
 async function uploadCaseImage(record,file){const body=new FormData();body.append('file',file,file.name);const r=await fetch('/api/case-images/cases/'+record.id,{method:'POST',body});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data&&typeof data.detail==='string'?data.detail:'Не удалось загрузить картинку');record.image_id=data.id;record.image={id:data.id,filename:data.filename,media_type:data.media_type,size_bytes:data.size_bytes,updated_at:data.updated_at,is_default:false};record.image_source='case';}
 async function uploadSetImage(file){if(!currentSet?.id){notice('Сначала сохраните набор: картинка привязывается к сохранённому набору.',true);return;}const body=new FormData();body.append('file',file,file.name);const r=await fetch('/api/case-images/sets/'+currentSet.id+'/default',{method:'POST',body});const data=await r.json().catch(()=>null);if(!r.ok)throw Error(data&&typeof data.detail==='string'?data.detail:'Не удалось загрузить картинку');setImage=data;if(applyImageToAll)for(const c of cases||[])if(c.image_source!=='case'){c.image={...data};c.image_source='set';}renderCases();mark();notice(`Картинка набора сохранена${applyImageToAll?': применена ко всем кейсам без своей картинки':''}.`);}
 function renderHistory(record,host){

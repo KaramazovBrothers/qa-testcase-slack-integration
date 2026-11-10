@@ -5,6 +5,7 @@ must reach Slack right after the case body: after the body message, before the
 extra instructions and before the WebView APK.
 """
 
+import base64
 import io
 import tempfile
 import unittest
@@ -16,10 +17,10 @@ from fastapi.testclient import TestClient
 from app import case_images, main, storage
 from app.current_user import get_current_user_id
 
-# A 1x1 PNG: valid image bytes, small enough to keep the test readable.
-PNG = bytes.fromhex(
-    "89504e470d0a1a0a0000000d494844520000000100000001080600000"
-    "01f15c4890000000d49444154789c6360000002000154a24f7d0000000049454e44ae426082"
+# A real 120x90 PNG (Pillow rejects a hand-assembled one when decoding), so
+# the thumbnail path is exercised rather than its fallback.
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAHgAAABaCAIAAAD8YgW4AAAA30lEQVR4nO3QMQ0AIADAMMASnlCLKFSwqzWwZHOfO/hvBQ2M7hgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0aPxgMjHwIZJO8apQAAAABJRU5ErkJggg=="
 )
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
 
@@ -170,9 +171,12 @@ class SendOrderTests(unittest.TestCase):
             calls.append(("post", text))
             return {"ok": True, "ts": f"1700000000.00000{len(calls)}", "channel": channel}
 
+        uploaded_bytes = {}
+
         async def fake_upload(token, channel, filename, content, *, thread_ts=None,
                               initial_comment=""):
             calls.append(("upload", filename))
+            uploaded_bytes["content"] = content
             return {"ok": True, "files": [{"id": "F1"}]}
 
         with patch.object(main, "post_message", side_effect=fake_post), \
@@ -187,7 +191,11 @@ class SendOrderTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         kinds = [kind for kind, _ in calls]
         self.assertEqual(kinds, ["post", "post", "upload", "post"])
-        self.assertEqual(calls[2][1], "shot.png")
+        # Slack gets the small copy, so a screenshot cannot fill the thread.
+        self.assertEqual(calls[2][1], f"method-{image['id']}.png")
+        from PIL import Image
+        with Image.open(io.BytesIO(uploaded_bytes["content"])) as sent:
+            self.assertLessEqual(max(sent.size), 50)
 
     def test_unknown_image_is_rejected_before_sending(self):
         with patch.object(main, "post_message") as send:
