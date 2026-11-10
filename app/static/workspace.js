@@ -124,7 +124,7 @@ function renderCaseShots(){renderSetImage();const pick=$('setImageFile');
 if(pick&&!pick.dataset.bound){pick.dataset.bound='1';
 pick.onchange=()=>{const file=pick.files&&pick.files[0];pick.value='';if(!file)return;action(()=>uploadSetImage(file));};
 $('pickSetImage').onclick=()=>pick.click();
-$('pasteSetImage').onclick=()=>pasteImage($('setImageInfo'),file=>action(()=>uploadSetImage(file)));
+const paste=$('pasteSetImage');if(paste)paste.onclick=()=>pasteImage($('setImageInfo'),file=>action(()=>uploadSetImage(file)));
 $('applyImageToAll').onchange=e=>{applyImageToAll=e.target.checked;mark();};}}
 function renderCounts(){$('counts').replaceChildren(...statuses.map(s=>el('span',`${s}: ${(cases||[]).filter(c=>c.status===s).length}`)));}
 function renderCases(){ $('cases').replaceChildren();renderCounts();$('sendSet').disabled=!cases?.length;$('setInfo').textContent=currentSet?`Сохранённый набор · ${date(currentSet.created_at)}. Изменения применяются кнопкой «Сохранить».`:'Изменения кейсов сохраняются кнопкой «Сохранить».';for(const record of cases||[]){const card=el('article',undefined,'case');card.dataset.status=record.status;card.dataset.caseId=record.id||record.client_key;const heading=el('h3',record.title),body=el('pre',record.text);heading.setAttribute('aria-label','Название кейса');body.setAttribute('aria-label','Текст кейса');const [rl,request]=field('Обращение в Slack',record.request_text,'textarea'),[cl,comment]=field('Дополнительные инструкции для Slack',record.comment,'textarea');request.readOnly=comment.readOnly=true;request.maxLength=2000;comment.maxLength=20000;
