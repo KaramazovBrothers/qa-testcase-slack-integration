@@ -1,3 +1,5 @@
+import time
+
 import httpx
 
 SLACK_POST_MESSAGE_URL = "https://slack.com/api/chat.postMessage"
@@ -65,6 +67,37 @@ async def get_permalink(user_token: str, channel_id: str, message_ts: str) -> st
         raise RuntimeError('Slack permalink lookup failed')
     permalink = data.get('permalink')
     return _validated_permalink(permalink)
+
+
+async def channel_messages_with_replies(user_token: str, channel_id: str) -> list[dict]:
+    """Channel messages of the last week that carry a thread.
+
+    Used only when a recorded thread no longer resolves in Slack: the case body
+    may still sit in the channel as a root message, and this lets the delete
+    find it instead of leaving it behind.
+    """
+    oldest = str(int(time.time()) - 7 * 24 * 3600)
+    found: list[dict] = []
+    async with httpx.AsyncClient(timeout=20) as client:
+        cursor = None
+        for _ in range(5):  # five pages of 200 messages is far beyond a QA day
+            params = {'channel': channel_id, 'limit': 200, 'oldest': oldest}
+            if cursor:
+                params['cursor'] = cursor
+            response = await client.get(
+                'https://slack.com/api/conversations.history',
+                headers={'Authorization': f'Bearer {user_token}'},
+                params=params,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not data.get('ok'):
+                raise RuntimeError(f"Slack history failed: {data.get('error', 'unknown_error')}")
+            found.extend(m for m in data.get('messages') or [] if m.get('thread_ts'))
+            cursor = (data.get('response_metadata') or {}).get('next_cursor')
+            if not cursor:
+                break
+    return found
 
 
 def _validated_permalink(permalink) -> str:

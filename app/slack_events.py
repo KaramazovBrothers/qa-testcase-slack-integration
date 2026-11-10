@@ -93,10 +93,18 @@ def _remember(event_id: str | None, event_type: str, outcome: str) -> None:
 
 
 def _send_for_thread(channel: str, thread_ts: str):
+    """The send a thread reply belongs to.
+
+    A thread is identified by its start, which is usually `thread_ts`, but a
+    case body can also be the start of its own thread when the recorded start
+    is not ours. Looking at both columns keeps a reply attached to its case.
+    """
     with storage.connection() as db:
         return db.execute(
-            "SELECT * FROM slack_sends WHERE channel=? AND thread_ts=? ORDER BY id LIMIT 1",
-            (channel, thread_ts),
+            """SELECT * FROM slack_sends
+               WHERE channel=? AND (thread_ts=? OR ts=?)
+               ORDER BY id LIMIT 1""",
+            (channel, thread_ts, thread_ts),
         ).fetchone()
 
 

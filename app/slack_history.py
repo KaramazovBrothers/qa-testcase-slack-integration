@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import HTTPException
 from app import storage
-from app.slack_client import get_permalink, list_thread_replies, delete_message
+from app.slack_client import (get_permalink, list_thread_replies, delete_message,
+                              channel_messages_with_replies)
 
 
 def now():
@@ -173,6 +174,35 @@ def _is_ours(record, message: dict, own: set[str]) -> bool:
     return bool(files & _own_file_ids(record))
 
 
+async def _replies_from_channel(user_token, channel, record, wanted: set[str]):
+    """Find our case in the channel when its recorded thread no longer exists.
+
+    Returns `(replies, gone, root_ts)`, where `root_ts` is the message found. A message is accepted only if it is one we posted
+    (a known timestamp, `bot_id`, or an upload of ours): deleting a stranger's
+    message because it happened to be nearby would be worse than leaving ours.
+    """
+    known = _own_message_ts(record)
+    known.discard('')
+    try:
+        candidates = await channel_messages_with_replies(user_token, channel)
+    except (httpx.HTTPError, RuntimeError):
+        return [], True, None
+    for message in candidates:
+        ts = message.get('ts')
+        if ts not in wanted and ts not in known:
+            continue
+        if not _is_ours(record, message, known):
+            continue
+        try:
+            replies = await list_thread_replies(user_token, channel, ts)
+        except (httpx.HTTPError, RuntimeError):
+            replies = [message]
+        if not any(m.get('ts') == ts for m in replies):
+            replies.insert(0, message)
+        return replies, False, ts
+    return [], True, None
+
+
 async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
     """Delete a send's thread from Slack, then forget it locally.
 
@@ -202,6 +232,15 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
                 gone_in_slack = False
             except (httpx.HTTPError, RuntimeError):
                 replies = []
+        if gone_in_slack:
+            # Neither timestamp resolves. The body may still exist as a root
+            # message whose thread we read, so look for it in the channel before
+            # deciding there is nothing to delete. When it is found there, that
+            # message *is* the start of the thread we delete.
+            replies, gone_in_slack, found_root = await _replies_from_channel(
+                user_token, channel, record, {thread_ts, body_ts})
+            if found_root:
+                thread_ts = found_root
 
     people = [m for m in replies if not _is_ours(record, m, own)]
     if people:
@@ -217,7 +256,7 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
     # thread, so its first message is that body and gets deleted here.
     deleted = 0
     for message in sorted(replies, key=lambda m: m.get('ts') or '', reverse=True):
-        if message.get('ts') == record['ts']:
+        if message.get('ts') == thread_ts:
             # The parent is deleted below, where a foreign parent can be caught.
             continue
         answer = await delete_message(user_token, channel, message['ts'])
@@ -227,13 +266,21 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
         error = answer.get('error', 'unknown_error')
         if error == 'message_not_found':
             # Already deleted by hand; keep going with the rest of the thread.
+            # Its timestamp may still be what the parent deletion below uses.
+            if message.get('ts'):
+                own.add(message['ts'])
             continue
         raise HTTPException(
             502,
             f"Slack не удалил сообщение {message['ts']}: "
             f"{error}. Тред остался в Slack.",
         )
-    answer = await delete_message(user_token, channel, record['ts'])
+    # `thread_ts` is the start of the thread we actually read: usually the
+    # recorded one, or the body's root message when the recorded start was gone.
+    if thread_ts == record['ts']:
+        # Posted while recording the send, so it is ours by construction.
+        own.add(thread_ts)
+    answer = await delete_message(user_token, channel, thread_ts)
     if answer.get('ok'):
         deleted += 1
     else:
@@ -241,10 +288,10 @@ async def delete_send(user_token, send_id, user_id=storage.LOCAL_USER_ID):
         if error != 'message_not_found':
             raise HTTPException(
                 502,
-                f"Slack не удалил сообщение {record['ts']}: "
+                f"Slack не удалил сообщение {thread_ts}: "
                 f"{error}. Тред остался в Slack.",
             )
-        if not _is_ours(record, {'ts': record['ts']}, own):
+        if not _is_ours(record, {'ts': thread_ts}, own):
             # The thread start was never posted by the app, so this is a foreign
             # message. Keep the record: the case body we deleted is now gone, so
             # deleting the row would hide where the case really lived.

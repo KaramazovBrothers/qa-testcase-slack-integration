@@ -234,7 +234,7 @@ class WorkspaceTests(unittest.TestCase):
              patch.object(slack_history,'delete_message',fake_delete):
             response=self.client.delete(f'/api/tasks/{self.task_id}/sets/{self.set_id}/cases/{self.case_id}/slack-sends/{send_id}')
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(len(deleted),3)  # three replies plus the parent, each once
+        self.assertEqual(sorted(deleted),['123.0','123.1','123.2','123.3'])  # every message once
         with storage.connection() as db:
             self.assertIsNone(db.execute('SELECT 1 FROM slack_sends WHERE id=?',(send_id,)).fetchone())
 
