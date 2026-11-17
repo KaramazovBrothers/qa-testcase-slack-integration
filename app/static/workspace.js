@@ -157,7 +157,7 @@ async function renderApkNote(host,record){host.replaceChildren();const licence=c
 function imageLabel(record){const image=imageFor(record);if(!image)return 'Картика метода не выбрана — в Slack она не прикрепится.';const source=record.image_source==='case'||(record.image&&record.image.id&&record.image_source!=='set')?'своя картинка кейса':'картинка набора';return `${image.filename} · ${source} · ${date(image.updated_at)}`;}
 function renderCaseImage(host,record){host.replaceChildren();const image=imageFor(record);
 const head=el('div',undefined,'case-image-head');
-if(image){const img=el('img');img.src=imageUrl(image);img.alt='Как метод выглядит на фронте';img.loading='lazy';host.append(img);head.append(el('span',imageLabel(record)));}
+if(image){const img=el('img');img.src=imageUrl(image);img.alt='Как метод выглядит на фронте';img.loading='lazy';img.title='Нажмите, чтобы увеличить';img.onclick=()=>img.classList.toggle('zoomed');host.append(img);head.append(el('span',imageLabel(record)));}
 else head.append(el('span',imageLabel(record),'muted'));
 const buttons=el('div',undefined,'row');
 const picker=el('input');picker.type='file';picker.accept='image/png,image/jpeg,image/gif,image/webp';
