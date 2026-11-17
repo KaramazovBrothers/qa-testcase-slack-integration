@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app import main, slack_events, slack_history, storage
+from tests.pg_support import EngineTestCase
 
 SECRET = "test-signing-secret"
 CHANNEL = "C_TEST"
@@ -28,7 +29,7 @@ def signature(secret, timestamp, body: bytes) -> str:
     return "v0=" + hmac.new(secret.encode(), basestring, hashlib.sha256).hexdigest()
 
 
-class SignatureTests(unittest.TestCase):
+class SignatureTests(EngineTestCase):
     def test_valid_signature_passes(self):
         body = b'{"a":1}'
         ts = str(int(time.time()))

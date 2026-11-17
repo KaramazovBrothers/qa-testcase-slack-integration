@@ -136,7 +136,7 @@ def in_region(region: str) -> list[dict]:
         rows = db.execute(
             """SELECT slack_user_id, name, team_id, region
                FROM slack_people WHERE region=?
-               ORDER BY (name=''), name COLLATE NOCASE, slack_user_id""",
+               ORDER BY (CASE WHEN name='' THEN 1 ELSE 0 END), lower(name), slack_user_id""",
             (region,),
         ).fetchall()
     return [

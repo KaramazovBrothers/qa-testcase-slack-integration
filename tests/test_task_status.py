@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app import main, storage
+from tests.pg_support import EngineTestCase
 
 
-class TaskStatusTests(unittest.TestCase):
+class TaskStatusTests(EngineTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / 'data' / 'qa_tests.db'

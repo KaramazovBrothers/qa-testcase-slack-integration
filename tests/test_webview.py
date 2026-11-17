@@ -8,9 +8,10 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from app import main, storage, webview_apk
+from tests.pg_support import EngineTestCase
 
 
-class WebviewTests(unittest.TestCase):
+class WebviewTests(EngineTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / 'data' / 'qa_tests.db'

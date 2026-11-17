@@ -48,6 +48,16 @@ The app starts without `.env`; you only need it to send messages to Slack. If po
 
 - SQLite is initialized at startup in `data/qa_tests.db`, relative to the project,
   independently of the shell's current directory. Its permissions are `0600`.
+- Set `QAHELPER_DATABASE_URL` (`postgresql://user:password@host:5432/qahelper`) to
+  run on PostgreSQL instead. The schema is created on first start and an existing
+  `data/qa_tests.db` is imported once, keeping ids and timestamps; the file itself
+  is left untouched. The application speaks one dialect: `?` placeholders,
+  `INSERT OR IGNORE`, `BEGIN IMMEDIATE` and `datetime('now')` are translated by
+  `app/db_adapter.py`, so both engines run the same code.
+- The test suite runs on either engine. Without `QAHELPER_TEST_DATABASE_URL` it
+  uses a temporary SQLite file per test; with it, every test gets a private
+  schema in that database which is dropped afterwards:
+  `QAHELPER_TEST_DATABASE_URL=postgresql:///qahelper_test .venv/bin/python -m unittest discover -s tests`.
 - Settings include every generator field, including local test-account passwords,
   language, payout-fee mode and regional mention edits. Each set keeps a settings
   snapshot; cases keep their own status, QA comment and bug-link list.

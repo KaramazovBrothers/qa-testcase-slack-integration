@@ -9,3 +9,5 @@ python-multipart==0.0.20
 # Case screenshots are scaled down for Slack (app/case_images.for_slack); without
 # Pillow the original picture is sent unchanged.
 pillow==11.1.0
+# PostgreSQL driver, used only when QAHELPER_DATABASE_URL is set.
+psycopg[binary]==3.2.3

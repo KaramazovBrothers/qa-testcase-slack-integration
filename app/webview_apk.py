@@ -85,7 +85,7 @@ def channel_people(channel: str = CHANNEL) -> list[dict]:
     with storage.connection() as db:
         rows = db.execute(
             """SELECT slack_user_id, name FROM channel_people WHERE channel=?
-               ORDER BY (name=''), name COLLATE NOCASE, slack_user_id""",
+               ORDER BY (CASE WHEN name='' THEN 1 ELSE 0 END), lower(name), slack_user_id""",
             (channel,),
         ).fetchall()
     return [{"id": row["slack_user_id"], "name": row["name"]} for row in rows]

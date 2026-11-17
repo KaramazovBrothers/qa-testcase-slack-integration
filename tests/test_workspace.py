@@ -8,10 +8,11 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 from app import main, storage, slack_history
+from tests.pg_support import EngineTestCase
 from app.slack_oauth import build_authorize_url
 
 
-class WorkspaceTests(unittest.TestCase):
+class WorkspaceTests(EngineTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / 'data' / 'qa_tests.db'

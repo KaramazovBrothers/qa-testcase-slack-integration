@@ -212,13 +212,17 @@ def list_tasks(q: str = Query(default='', max_length=80),
     with storage.connection() as db:
         return [dict(r) for r in db.execute(
             "SELECT id,jira_id,title,status,created_at,updated_at FROM tasks "
-            "WHERE owner_user_id=? AND (instr(upper(coalesce(jira_id,'')),upper(?))>0 OR instr(upper(title),upper(?))>0) "
+            # Case-insensitive search without instr()/strpos(): LIKE with lower()
+            # behaves the same in SQLite and PostgreSQL.
+            "WHERE owner_user_id=? AND ("
+            "? = '' OR lower(coalesce(jira_id,'')) LIKE lower(?) "
+            "OR lower(title) LIKE lower(?)) "
             "AND (?=0 OR status='active') "
             # Active work first; done tasks sink below it. Inside each group the
             # most recently touched task leads, so a task that was just closed
             # appears at the top of the done block.
             "ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, updated_at DESC, id DESC",
-            (user_id, q.strip(), q.strip(), 1 if active else 0))]
+            (user_id, q.strip(), f'%{q.strip()}%', f'%{q.strip()}%', 1 if active else 0))]
 
 
 @router.post('', status_code=201)

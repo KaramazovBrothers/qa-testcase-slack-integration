@@ -13,9 +13,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import main, storage
+from tests.pg_support import EngineTestCase
 
 
-class SetRepliesTests(unittest.TestCase):
+class SetRepliesTests(EngineTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.db_patch = patch.object(storage, 'DB_PATH', Path(self.temp.name) / 'data' / 'qa_tests.db')

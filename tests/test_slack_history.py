@@ -7,9 +7,10 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from fastapi.testclient import TestClient
 from app import main, storage, slack_history, slack_client
+from tests.pg_support import EngineTestCase
 
 
-class SlackHistoryTests(unittest.TestCase):
+class SlackHistoryTests(EngineTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

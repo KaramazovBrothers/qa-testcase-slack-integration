@@ -15,12 +15,40 @@ LOCAL_USER_ID = 1
 
 DB_PATH = Path(__file__).resolve().parent.parent / 'data' / 'qa_tests.db'
 
+# Tests point this at a scratch database (Postgres URL or SQLite file) without
+# touching the environment or the real file.
+DATABASE_URL: Optional[str] = None
+
+
+def _engine() -> str:
+    """`postgres` when QAHELPER_DATABASE_URL is set, otherwise the local file."""
+    from app import db_adapter as database
+
+    if DATABASE_URL:
+        return database.POSTGRES if DATABASE_URL.startswith('postgres') else database.SQLITE
+    return database.engine()
+
+
+def uses_postgres() -> bool:
+    return _engine() == "postgres"
+
+
+def use_database_url(url: Optional[str]) -> None:
+    """Bind storage to an explicit URL (tests) or back to the environment."""
+    global DATABASE_URL
+    DATABASE_URL = url
+
 
 @contextmanager
 def connection():
-    db = sqlite3.connect(DB_PATH, timeout=10)
-    db.row_factory = sqlite3.Row
-    db.execute('PRAGMA foreign_keys = ON')
+    """One connection for either engine; callers keep using plain SQL."""
+    from app import db_adapter as database
+
+    if _engine() == database.POSTGRES:
+        with database.connection(DATABASE_URL) as conn:
+            yield conn
+        return
+    db = database.sqlite_connection(DB_PATH)
     try:
         with db:
             yield db
@@ -29,6 +57,9 @@ def connection():
 
 
 def initialize():
+    """Create the schema for the configured engine (SQLite file or PostgreSQL)."""
+    if uses_postgres():
+        return initialize_postgres()
     backup_existing = DB_PATH.exists() and DB_PATH.stat().st_size > 0
     DB_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Create the file with private permissions from its first byte.
@@ -228,3 +259,25 @@ def mark_slack_token_invalid(user_id: int) -> None:
             "UPDATE users SET slack_token=NULL, updated_at=? WHERE id=?",
             (datetime.now(timezone.utc).isoformat(), user_id),
         )
+
+
+def initialize_postgres():
+    """Create the v13 schema on an empty database, or import the local file.
+
+    The replay of twelve SQLite migrations is not needed here: `pg_schema` holds
+    the resulting schema. On a fresh database with a local `qa_tests.db` next to
+    it, the rows are imported once so a move keeps the existing work.
+    """
+    from app import pg_schema
+
+    with connection() as db:
+        db.execute(pg_schema.CREATE_SCHEMA)
+        db.execute(pg_schema.CREATE_RULES)
+        has_rows = db.execute("SELECT count(*) AS n FROM users").fetchone()["n"]
+        if has_rows:
+            return {"users": has_rows, "imported": False}
+        legacy = DB_PATH if DB_PATH.exists() and DB_PATH.stat().st_size > 0 else None
+        if legacy is not None:
+            imported = pg_schema.import_sqlite(db, legacy)
+            return {"imported": True, **imported}
+    return {"imported": False}
