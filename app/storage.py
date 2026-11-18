@@ -15,6 +15,10 @@ LOCAL_USER_ID = 1
 
 DB_PATH = Path(__file__).resolve().parent.parent / 'data' / 'qa_tests.db'
 
+# The file a first PostgreSQL start imports from. It stays the project-relative
+# path even when `DB_PATH` is patched to a scratch database by the tests.
+LEGACY_SQLITE_PATH = DB_PATH
+
 # Tests point this at a scratch database (Postgres URL or SQLite file) without
 # touching the environment or the real file.
 DATABASE_URL: Optional[str] = None
@@ -276,7 +280,11 @@ def initialize_postgres():
         has_rows = db.execute("SELECT count(*) AS n FROM users").fetchone()["n"]
         if has_rows:
             return {"users": has_rows, "imported": False}
-        legacy = DB_PATH if DB_PATH.exists() and DB_PATH.stat().st_size > 0 else None
+        # `DB_PATH` is a path under SQLite but a URL under PostgreSQL (tests
+        # point it at a scratch database), so the legacy file is resolved
+        # explicitly rather than by trusting the attribute type.
+        legacy = LEGACY_SQLITE_PATH
+        legacy = legacy if isinstance(legacy, Path) and legacy.exists() and legacy.stat().st_size > 0 else None
         if legacy is not None:
             imported = pg_schema.import_sqlite(db, legacy)
             return {"imported": True, **imported}

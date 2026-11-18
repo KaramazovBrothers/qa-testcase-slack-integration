@@ -10,9 +10,14 @@ local SQLite file, exactly as before.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from typing import Iterator, Optional
+
+import re
+
+_INSERT_TARGET = re.compile(r"INSERT\s+INTO\s+([A-Za-z0-9_\"]+)", re.IGNORECASE)
 
 SQLITE = "sqlite"
 POSTGRES = "postgres"
@@ -149,6 +154,9 @@ class PostgresConnection:
         self._raw = raw
         self._dict_row = dict_row
 
+    # Cache of tables that have an `id` column (see `_tables_with_id`).
+    _id_tables = None
+
     # -- statements ---------------------------------------------------------
     def execute(self, sql: str, params=()):
         """Run one statement.
@@ -167,7 +175,11 @@ class PostgresConnection:
             text = text.replace("?", "%s")
         else:
             values = ()
-        returns_id = text.lstrip().upper().startswith("INSERT") and "RETURNING" not in text.upper()
+        returns_id = (
+            text.lstrip().upper().startswith("INSERT")
+            and "RETURNING" not in text.upper()
+            and self._has_id_column(text)
+        )
         if returns_id:
             text = text.rstrip().rstrip(";") + " RETURNING id"
         cursor = self._raw.cursor(row_factory=self._dict_row)
@@ -182,6 +194,31 @@ class PostgresConnection:
         cursor = self._raw.cursor()
         cursor.executemany(adapt(sql).replace("?", "%s"), list(rows))
         return Cursor(cursor)
+
+    def _has_id_column(self, sql: str) -> bool:
+        """True when the INSERT target table has an `id` column.
+
+        `slack_events` (unique key `event_id`) and a few link tables have no
+        `id`, so `RETURNING id` would fail; the target is read from the SQL.
+        """
+        match = _INSERT_TARGET.search(sql)
+        if not match:
+            return False
+        table = match.group(1).strip('"')
+        return table in self._tables_with_id()
+
+    def _tables_with_id(self) -> set:
+        cached = getattr(self, "_id_tables", None)
+        if cached is not None:
+            return cached
+        with self._raw.cursor() as cur:
+            cur.execute(
+                "SELECT table_name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND column_name = 'id'"
+            )
+            tables = {row[0] for row in cur.fetchall()}
+        self._id_tables = tables
+        return tables
 
     def executescript(self, script: str):
         raise NotImplementedError("PostgreSQL schema is created from app.pg_schema")
