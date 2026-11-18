@@ -242,7 +242,7 @@ def create_task(payload: TaskInput, user_id: CurrentUserId = storage.LOCAL_USER_
 def read_task(task_id: int, user_id: CurrentUserId = storage.LOCAL_USER_ID):
     with storage.connection() as db:
         result=storage.decode(require_task(db,task_id,user_id),'settings')
-        result['test_accounts']=[dict(r) for r in db.execute('SELECT * FROM test_accounts WHERE owner_user_id=? AND region=? ORDER BY rowid',(user_id,result.get('region') or result['settings'].get('fields',{}).get('region','TR')))]
+        result['test_accounts']=[dict(r) for r in db.execute('SELECT * FROM test_accounts WHERE owner_user_id=? AND region=? ORDER BY id',(user_id,result.get('region') or result['settings'].get('fields',{}).get('region','TR')))]
         return result
 
 

@@ -46,7 +46,7 @@ class AccountSave(Model):
 
 
 def read_accounts(db,user_id,region):
-    return [dict(r) for r in db.execute('SELECT * FROM test_accounts WHERE owner_user_id=? AND region=? ORDER BY rowid',(user_id,region))]
+    return [dict(r) for r in db.execute('SELECT * FROM test_accounts WHERE owner_user_id=? AND region=? ORDER BY id',(user_id,region))]
 
 
 def save_accounts(db,user_id,region,accounts,deleted):
