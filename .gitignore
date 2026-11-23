@@ -18,9 +18,10 @@ secrets/
 *.pem
 *.key
 
-# Agent instructions / handoff notes never go to GitHub
+# No markdown in the repository: every *.md (README, agent instructions,
+# handoff notes, DevOps drafts) stays local by default.
 *.md
-!README.md
+*.markdown
 
 # Node tooling for the frontend build/tests
 node_modules/
