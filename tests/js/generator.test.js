@@ -12,6 +12,7 @@ import { root, resetForm, set, get } from './fake-dom.js';
 import { state } from '../../static-src/generator/store.js';
 import { generateCases } from '../../static-src/generator/cases/index.js';
 import { amountInputIds } from '../../static-src/generator/cases/index.js';
+import { updateUI } from '../../static-src/generator/cases/payout.js';
 
 function prepare(values = {}) {
   resetForm(values);
@@ -197,6 +198,41 @@ test('over/underpayment cases keep the actual amount requirement', () => {
   const list = generateCases();
   assert.ok(list.some((item) => item.text.includes('Фактическая сумма должна быть больше суммы заявки.')));
   assert.ok(list.some((item) => item.text.includes('Фактическая сумма должна быть меньше суммы заявки.')));
+});
+
+test('the app shell gets the underpayment and WebView the overpayment', () => {
+  const titlesFor = (license) => {
+    prepare({ license });
+    // The panel refreshes app shells on licence change; the tests do it here.
+    updateUI();
+    set('amountChange', 'yes');
+    return generateCases().map((item) => item.title);
+  };
+  for (const license of ['com', 'pinco']) {
+    const titles = titlesFor(license);
+    const native = titles.find((title) => title.startsWith('Нативное приложение'));
+    const webview = titles.find((title) => title.startsWith('WebView'));
+    assert.match(native, /недоплата/, `${license}: native must be underpayment`);
+    assert.match(webview, /переплата/, `${license}: WebView must be overpayment`);
+  }
+  // Zazino has no WebView build: the app shell (PWA) keeps the underpayment.
+  assert.match(titlesFor('zazino').find((title) => title.startsWith('PWA приложение')), /недоплата/);
+  // A licence without app shells falls back to browsers: one over, one under.
+  const plain = titlesFor('kz');
+  assert.ok(plain.some((title) => title.includes('переплата')), 'over case expected');
+  assert.ok(plain.some((title) => title.includes('недоплата')), 'under case expected');
+});
+
+test('the app shell keeps the underpayment in the amount-change matrix', () => {
+  prepare({ license: 'com' });
+  updateUI();
+  set('amountChange', 'yes');
+  const list = generateCases();
+  // The public case shape has no `kind`; the platform and title carry it.
+  const under = list.find((item) => item.title.includes('недоплата'));
+  const over = list.find((item) => item.title.includes('переплата'));
+  assert.match(under.text, /Platform: Нативное приложение/);
+  assert.match(over.text, /Platform: WebView/);
 });
 
 test('placeholders are preserved for the operator', () => {

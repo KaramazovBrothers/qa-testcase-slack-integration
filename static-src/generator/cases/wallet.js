@@ -197,12 +197,16 @@ export function generateWalletCases(wallet) {
     add(browsers[0], 'regular');
     const apps = licenseApps();
     const appPlatform = apps.pwa ? 'PWA приложение' : apps.native ? PLATFORM_NATIVE : null;
-    if (change) add(appPlatform || browsers[0], full ? 'over' : 'under', com);
+    // Amount-change scenarios: the browser fallback keeps the legacy order
+    // (over, then under); the app shell gets the underpayment and WebView the
+    // overpayment - the opposite of the earlier matrix, as testers asked.
+    if (change && !appPlatform) add(browsers[0], 'over', com);
+    else if (change) add(appPlatform, 'under', com);
     else if (com) add(appPlatform || browsers[0], 'regular', true);
     if (full) {
       if (appPlatform && !used.has(appPlatform)) add(appPlatform, 'regular');
       if (apps.native && !used.has(PLATFORM_NATIVE)) add(PLATFORM_NATIVE, 'regular');
-      if (apps.webview) add(PLATFORM_WEBVIEW, change ? 'under' : 'regular');
+      if (apps.webview) add(PLATFORM_WEBVIEW, change ? 'over' : 'regular');
       else if (change) add(browsers[0], 'under');
       const scenarios = [];
       if (checked('timer')) scenarios.push('expiry');
@@ -232,8 +236,10 @@ export function generateWalletCases(wallet) {
       add(wallet ? browsers[browsers.length - 1] : 'Desktop ' + region.desktop[0], 'regular');
       eligible = cases.filter((item, i) => i > 0 && ['regular', 'over', 'under'].includes(item.kind));
     }
-    // Keep underpayment with a valid receipt; assign the no-receipt flow elsewhere.
-    const without = eligible.find((item) => item.kind === 'over') || eligible.find((item) => item.kind === 'regular');
+    // Keep underpayment with a valid receipt; assign the overpayment to the
+    // no-receipt flow. `under`/`over` follow the app (under) / WebView (over)
+    // split above, so the same platform keeps the same scenario type.
+    const without = eligible.find((item) => item.kind === 'under') || eligible.find((item) => item.kind === 'regular');
     const invalid = eligible.find((item) => item !== without && item.kind === 'regular' && isDesktop(item.platform) && !item.usd)
       || eligible.find((item) => item !== without && item.kind === 'regular' && !item.usd)
       || eligible.find((item) => item !== without && item.kind !== 'under');
