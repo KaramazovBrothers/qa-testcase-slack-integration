@@ -23,6 +23,9 @@ secrets/
 *.md
 *.markdown
 
+# Stray file created by a shell redirect; never part of the project.
+1,
+
 # Node tooling for the frontend build/tests
 node_modules/
 npm-debug.log*
