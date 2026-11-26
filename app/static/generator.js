@@ -929,6 +929,8 @@ async function copyText(text, status, card) {
 }
 
 async function sendSingleCase(card, status) {
+  // Tags belong to the workspace, where the only mention list lives: this
+  // button posts one case, and the workspace send is the path that pings people.
   status.textContent = translate('Отправляем кейс в Slack...');
   try {
     const response = await fetch('/slack/send-cases', {
@@ -936,7 +938,6 @@ async function sendSingleCase(card, status) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         region: $('region').value,
-        ...mentionPayload(),
         cases: [readCase(card)],
       }),
     });
@@ -1159,8 +1160,7 @@ async function sendCasesToSlack(skipFirst = false) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ region: $('region').value, cases,
         operation: $('integration').value === 'payout' ? 'payout' : 'deposit' }),
-    });
-    const data = await response.json();
+    });    const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Slack send failed');
     $('message').textContent = translate('Отправлено в Slack: ') + data.sent + translate(' кейс(ов).');
   } catch (error) {

@@ -67,8 +67,7 @@ export async function sendCasesToSlack(skipFirst = false) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ region: $('region').value, cases,
         operation: $('integration').value === 'payout' ? 'payout' : 'deposit' }),
-    });
-    const data = await response.json();
+    });    const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Slack send failed');
     $('message').textContent = translate('Отправлено в Slack: ') + data.sent + translate(' кейс(ов).');
   } catch (error) {
