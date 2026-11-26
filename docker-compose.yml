@@ -1,0 +1,82 @@
+# QAHelper — deployment reference for DevOps.
+#
+# Two profiles:
+#
+#   docker compose up -d                    app + a local PostgreSQL (demo/pilot)
+#   docker compose --profile app up -d app  app only, database from .env
+#
+# The second form is the production shape: the company's managed PostgreSQL is
+# passed in QAHELPER_DATABASE_URL and nothing about the database lives here.
+#
+# Constraints that must not be "optimised away":
+#   * exactly one worker and one replica — the Slack reply stream (SSE) keeps
+#     its subscribers in this process, and a second worker would silently drop
+#     live replies for half the tabs;
+#   * the proxy must not buffer `/api/tasks/*/stream` (see DEVOPS_TASK.md §3);
+#   * `GET /` is the readiness probe: it answers 200 only after the schema is
+#     ready, so a container that fails to reach the database is unhealthy.
+
+name: qahelper
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qahelper:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Only used by the `demo` profile; in production .env supplies the real
+      # URL and this line is ignored because the variable already exists.
+      QAHELPER_DATABASE_URL: ${QAHELPER_DATABASE_URL:-postgresql://qahelper:qahelper@db:5432/qahelper}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Environment-specific Slack channel routing. Mounted rather than baked
+      # in, so the same image runs in test and production.
+      - ./config/slack_routes.json:/app/config/slack_routes.json:ro
+      # Only needed while the app still runs on SQLite. With PostgreSQL this
+      # volume stays empty and can be dropped.
+      - qahelper-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Demo / pilot only. Production uses the company's managed PostgreSQL:
+  # start the stack with `--profile app` and leave this service down.
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    profiles: ["demo"]
+    environment:
+      POSTGRES_DB: qahelper
+      POSTGRES_USER: qahelper
+      POSTGRES_PASSWORD: qahelper
+    volumes:
+      - qahelper-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qahelper -d qahelper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published: only the app talks to it, and only inside the network.
+    expose:
+      - "5432"
+
+volumes:
+  qahelper-data:
+  qahelper-pgdata:

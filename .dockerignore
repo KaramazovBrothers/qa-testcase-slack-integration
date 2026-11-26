@@ -1,0 +1,46 @@
+# Build context hygiene: the image only needs `app/`, `config/` and
+# `requirements.txt`. Everything else would either leak local state or bloat the
+# context — the virtualenv alone is hundreds of megabytes, and `.env`, the
+# database and the agent notes must never enter an image.
+
+.git
+.github
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Local data and secrets.
+data
+*.db
+*.db-*
+*.sqlite*
+.env
+.env.*
+!.env.example
+secrets
+*.pem
+*.key
+config/slack_routes.json
+
+# Frontend sources are already built into app/static and the image has no node.
+node_modules
+package.json
+package-lock.json
+static-src
+
+# Tests and documentation are not part of the runtime.
+tests
+scripts
+*.md
+*.markdown
+
+# Stray files that must not reach the image.
+1,
+
+# Local tooling.
+.idea
+.vscode
+.DS_Store
