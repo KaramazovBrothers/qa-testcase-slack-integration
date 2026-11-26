@@ -31,7 +31,7 @@ class LocalAccessMiddleware(BaseHTTPMiddleware):
                      path.startswith('/api/slack/people') or
                      path.startswith('/api/webview') or
                      path.startswith('/api/case-images') or
-                     path in {'/generator', '/slack/send', '/slack/send-cases',
+                     path in {'/generator', '/slack/send-cases',
                               '/api/slack-status', '/api/slack-diagnostics'})
         proxy = access_mode() == 'proxy'
         if protected:

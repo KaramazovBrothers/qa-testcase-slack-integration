@@ -26,7 +26,6 @@ PROTECTED = [
     ("GET", "/api/tasks/1/sets/1/cases/1/slack-replies"),
     ("GET", "/api/tasks/accounts?region=TR"),
     ("GET", "/generator"),
-    ("POST", "/slack/send"),
     ("POST", "/slack/send-cases"),
     ("GET", "/api/slack-status"),
     ("GET", "/api/slack-diagnostics"),

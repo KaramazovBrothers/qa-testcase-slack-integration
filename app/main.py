@@ -24,7 +24,7 @@ from app.slack_client import post_message, upload_file
 from app.slack_client import SlackTokenRejected
 from app import webview_apk
 from app.slack_oauth import build_authorize_url, exchange_code
-from app.slack_routes import get_slack_route
+from app.slack_routes import RouteNotConfigured, get_slack_route
 
 load_dotenv()
 
@@ -308,17 +308,6 @@ async def slack_call(coro, user_id: int):
         raise
 
 
-@app.post("/slack/send", response_class=HTMLResponse)
-async def slack_send(text: str = Form(...), user_id: CurrentUserId = storage.LOCAL_USER_ID) -> str:
-    user_token = require_slack_token(user_id)
-    channel_id = os.getenv("SLACK_CHANNEL_ID")
-    if not channel_id:
-        raise HTTPException(status_code=500, detail="Missing SLACK_CHANNEL_ID")
-    result = await slack_call(post_message(user_token, channel_id, text), user_id)
-    ts = result.get("ts", "unknown")
-    return f'<p>Sent to Slack. ts={ts}</p><p><a href="/">Back</a></p>'
-
-
 @app.post("/slack/events", include_in_schema=False)
 async def slack_events_endpoint(request: Request) -> JSONResponse:
     """Slack Events API receiver.
@@ -376,12 +365,13 @@ async def slack_send_cases(payload: SendCasesRequest, user_id: CurrentUserId = s
         raise HTTPException(status_code=400, detail="No generated cases")
 
     try:
-        channel_id, _ = get_slack_route(payload.region)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        channel_id, configured_users = get_slack_route(payload.region)
+    except RouteNotConfigured as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    # Who gets pinged is decided per send and never defaulted: an empty list
+    # posts the case without notifying anybody, which is a valid choice.
     try:
-        # No fallback to a default list: an empty selection mentions nobody.
         user_ids = normalize_mentions(payload.mention_users or [])
         mentions = format_mentions(user_ids)
     except ValueError as exc:

@@ -90,7 +90,9 @@ const mentionValues=()=>(mentionEdits[mentionRegion()]||[]).map(v=>v.trim()).fil
 function mentionId(value){const m=String(value||'').match(/(?:^|\/team\/|^@|<@)([UW][A-Z0-9]{2,})/);return m?m[1]:null;}
 function mentionLabel(value){const id=mentionId(value);return (id&&slackPeople[id])||value;}
 function renderMentions(){const region=mentionRegion(),list=$('mentionList');list.replaceChildren();
-if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[...(directory[region]||[])];
+// No default list: who to ping is a decision for each send. The shared
+// directory only offers names, it never fills the field.
+if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[];
 mentionEdits[region]=mentionEdits[region].filter(v=>typeof v==='string');
 mentionEdits[region].forEach((value,index)=>{
 const row=el('div',undefined,'mention-row');
@@ -352,7 +354,7 @@ notice('Кейс добавлен. Текст взят из генератора
 function send(keys){action(async()=>{await saveWork();const selected=cases.filter(c=>keys.includes(c.client_key));try{notice('Отправка в Slack…');const result=await api('/slack/send-cases','POST',{region:currentSet.region,operation:currentSet.operation,mention_users:mentionValues(),cases:selected.map(c=>({case_ids:[c.id],title:c.title,text:c.text,comment:c.comment,request_text:c.request_text,licence:caseLicence(c),image_id:imageFor(c)?.id||null}))});notice(`В Slack отправлено кейсов: ${result.sent}.`);}catch(e){notice(e.message+' Автоматического повтора отправки не будет. Проверьте историю перед новой отправкой.',true);}finally{await refreshHistory();}});}
 $('saveWork').onclick=$('saveCurrent').onclick=()=>action(saveWork);$('newTask').onclick=()=>action(()=>newDraft());$('addAccount').onclick=()=>{accounts.push({id:uuid(),name:'Юзер '+(accounts.length+1),account_id:'',login:'',password:'',kind:'main'});renderAccounts();mark();};$('sendSet').onclick=()=>send((cases||[]).map(c=>c.client_key));$('addCase').onclick=()=>addCase();$('statusFilter').onchange=applyFilter;$('search').oninput=()=>listTasks().catch(e=>notice(e.message,true));$('onlyActive').onchange=()=>listTasks().catch(e=>notice(e.message,true));$('toggleStatus').onclick=()=>action(async()=>{if(!task)return;const result=await api(`/api/tasks/${task.id}/status`,'POST',{});task.status=result.status;showTask();await listTasks();notice(result.status==='done'?'Задача помечена как done.':'Задача снова активна.');});for(const id of ['jiraId','taskTitle'])$(id).oninput=mark;
 $('addMention').onclick=()=>{const region=mentionRegion();if(!Object.hasOwn(mentionEdits,region))mentionEdits[region]=[];mentionEdits[region].push('');renderMentions();mark();};
-$('resetMentions').onclick=()=>{const region=mentionRegion();mentionEdits[region]=[...(directory[region]||[])];renderMentions();mark();};
+$('resetMentions').onclick=()=>{const region=mentionRegion();mentionEdits[region]=[];renderMentions();mark();};
 $('deleteTask').onclick=()=>action(async()=>{if(!confirm('Точно удалить задачу со всеми кейсами без возможности восстановления?'))return;await api(`/api/tasks/${task.id}`,'DELETE');await newDraft(false);});
 
 async function slackStatus(){const status=await api('/api/slack-status');$('slackStatus').textContent=status.connected?'Slack подключён':'Slack не подключён';}
